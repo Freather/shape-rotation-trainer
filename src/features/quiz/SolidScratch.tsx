@@ -11,7 +11,7 @@ import { applyOp, resolveOp, transformVec, type SolidState } from '../../engine/
 import { foldBounds, foldTransforms } from '../../engine/net';
 import { useSettings } from '../../store';
 import { AxisLine, Solid3D, ThreeBridge } from '../../render/Solid3D';
-import { useHandRotate, type ThreeRefs } from '../../render/useHandRotate';
+import { useHandRotate, type AxisCandidate, type ThreeRefs } from '../../render/useHandRotate';
 import { easeInOut } from '../../render/usePlayer';
 import { RuleBadge } from '../../ui/Parts';
 
@@ -32,7 +32,7 @@ export function SolidScratch({ scratch, rules }: { scratch: Extract<Scratch, { k
   const [history, setHistory] = useState<SolidState[]>([]);
   const [anim, setAnim] = useState<{ op: RotationOp; p: number } | null>(null);
   const [foldT, setFoldT] = useState(scratch.net ? 1 : 0);
-  const [axis, setAxis] = useState<View | 'face'>(VIEWS[solidId].views.includes('top') ? 'top' : 'front');
+  const [axis, setAxis] = useState<View | 'face' | 'auto'>('auto');
   const three = useRef<ThreeRefs | null>(null);
 
   // 문제가 바뀌면 처음 상태로
@@ -65,19 +65,34 @@ export function SolidScratch({ scratch, rules }: { scratch: Extract<Scratch, { k
     setTimeout(finish, 900);
   };
 
-  const step = axis === 'face' ? 360 / solid.sides : VIEWS[solidId].step;
+  const faceStep = 360 / solid.sides;
+  const record = (op: RotationOp) => {
+    setHistory((h) => [...h, state]);
+    setState((st) => applyOp(st, op, labeling));
+  };
+  const dirOf = (k: number, angle: number): Dir => (angle === 180 ? 'cw' : k > 0 ? 'ccw' : 'cw');
+  const viewCandidate = (v: View): AxisCandidate => ({
+    axis: VIEW_AXIS[v],
+    step: VIEWS[solidId].step,
+    commit: (k) => {
+      const angle = Math.abs(k) * VIEWS[solidId].step;
+      record({ kind: 'view', view: v, dir: dirOf(k, angle), angle });
+    },
+  });
+  const faceCandidate = (face: number): AxisCandidate => ({
+    axis: transformVec(state, solid.faces[face].normal),
+    step: faceStep,
+    commit: (k) => {
+      const angle = Math.abs(k) * faceStep;
+      record({ kind: 'face', symbol: labeling[face].symbol, dir: dirOf(k, angle), angle });
+    },
+  });
   const hand = useHandRotate({
     three,
     enabled: foldT === 0 && !anim,
-    axisFor: (face) => (axis === 'face' ? transformVec(state, solid.faces[face].normal) : VIEW_AXIS[axis]),
-    step,
-    onCommit: (k, face) => {
-      const angle = Math.abs(k) * step;
-      const dir: Dir = angle === 180 ? 'cw' : k > 0 ? 'ccw' : 'cw';
-      const op: RotationOp = axis === 'face' ? { kind: 'face', symbol: labeling[face].symbol, dir, angle } : { kind: 'view', view: axis, dir, angle };
-      setHistory((h) => [...h, state]);
-      setState((s) => applyOp(s, op, labeling));
-    },
+    // 자동: 끄는 방향을 보고 앞뒤·위아래·좌우·누른 면 축 중 가장 잘 맞는 축으로 돌림
+    candidates: (face) =>
+      axis === 'auto' ? [...VIEWS[solidId].views.map(viewCandidate), faceCandidate(face)] : axis === 'face' ? [faceCandidate(face)] : [viewCandidate(axis)],
   });
 
   // 표시 자세
@@ -125,8 +140,8 @@ export function SolidScratch({ scratch, rules }: { scratch: Extract<Scratch, { k
             onFacePress={hand.press}
             onFaceClick={() => hand.consumeClick()}
           />
-          {foldT === 0 && axis !== 'face' && <AxisLine axis={VIEW_AXIS[axis] as Vec3} />}
-          {hand.dragRot && axis === 'face' && <AxisLine axis={hand.dragRot.axis} />}
+          {foldT === 0 && !hand.dragRot && axis !== 'face' && axis !== 'auto' && <AxisLine axis={VIEW_AXIS[axis] as Vec3} />}
+          {hand.dragRot && <AxisLine axis={hand.dragRot.axis} />}
           <OrbitControls makeDefault enablePan={false} minDistance={4} maxDistance={18} />
         </Canvas>
       </div>
@@ -140,9 +155,9 @@ export function SolidScratch({ scratch, rules }: { scratch: Extract<Scratch, { k
         끌어서 돌릴 축
       </div>
       <div className="seg">
-        {[...VIEWS[solidId].views, 'face' as const].map((a) => (
+        {['auto' as const, ...VIEWS[solidId].views, 'face' as const].map((a) => (
           <button key={a} className={axis === a ? 'on' : ''} onClick={() => setAxis(a)}>
-            {a === 'face' ? '누른 면' : AXIS_NAME[a]}
+            {a === 'auto' ? '자동' : a === 'face' ? '누른 면' : AXIS_NAME[a]}
           </button>
         ))}
       </div>
@@ -187,7 +202,9 @@ export function SolidScratch({ scratch, rules }: { scratch: Extract<Scratch, { k
         </button>
       </div>
       <p className="note">
-        {net ? '슬라이더로 접은 뒤 돌려 보세요. ' : ''}도형을 끌면 주황 축으로만 돌고, 손을 떼면 {step}° 단위로 맞춰져요. 빈 곳을 끌면 보는 방향만 바뀌어요.
+        {net && foldT > 0 ? '다 접어야 손으로 돌릴 수 있어요. ' : ''}
+        {axis === 'auto' ? '끄는 방향에 맞는 축을 알아서 골라 돌려요. ' : '고른 축으로만 돌아요. '}
+        조금만 끌어도 다음 각도로 넘어가고, 손을 떼면 각도가 딱 맞춰져요. 빈 곳을 끌면 보는 방향만 바뀌어요.
       </p>
     </div>
   );
