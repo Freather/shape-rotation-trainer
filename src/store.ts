@@ -16,6 +16,12 @@ export interface Settings {
   allowRuleReviewInExam: boolean;
   allowMirrorRules: boolean;
   examCount: number;
+  /** 하루 목표 문제 수 */
+  dailyGoal: number;
+  /** 매일 알림 시각 HH:MM */
+  reminderTime: string;
+  /** 사이트를 열어 두었을 때 브라우저 알림 */
+  notifyOn: boolean;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -27,6 +33,9 @@ export const DEFAULT_SETTINGS: Settings = {
   allowRuleReviewInExam: false,
   allowMirrorRules: false,
   examCount: 15,
+  dailyGoal: 20,
+  reminderTime: '20:00',
+  notifyOn: false,
 };
 
 interface SettingsState extends Settings {
