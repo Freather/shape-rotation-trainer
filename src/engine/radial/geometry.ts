@@ -57,7 +57,7 @@ export function cellAnchor(shape: RadialShape, ring: number, k: number): { x: nu
   const r = ring === 0 ? rOut * 0.58 : (rOut + rIn) / 2;
   const thickness = ring === 0 ? rOut * 0.7 : rOut - rIn;
   const arc = 2 * r * Math.sin(rad(Math.min(w, 120) / 2));
-  const size = Math.min(thickness, arc) * 0.78;
+  const size = Math.min(thickness * 1.05, arc * 0.95);
   const [x, y] = polar(mid, r);
   return { x, y, size };
 }

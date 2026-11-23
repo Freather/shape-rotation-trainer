@@ -346,3 +346,12 @@ export function randomSpanningTree(solidId: SolidId, rng: Rng, root = defaultRoo
 export function pickNet(solidId: SolidId, rng: Rng): number[] {
   return hasPresets(solidId) ? rng.pick(netPresets(solidId)) : randomSpanningTree(solidId, rng);
 }
+
+/** 펼침 중인 도형의 중심과 반지름 (화면에 맞추기용) */
+export function foldBounds(solidId: SolidId, T: RigidTransform[]): { center: Vec3; radius: number } {
+  const solid = getSolid(solidId);
+  const pts = solid.faces.flatMap((f) => f.vertices.map((v) => applyT(T[f.id], solid.vertices[v])));
+  const c = pts.reduce<Vec3>((acc, p) => add(acc, p), [0, 0, 0]).map((x) => x / pts.length) as unknown as Vec3;
+  const radius = Math.max(...pts.map((p) => Math.hypot(p[0] - c[0], p[1] - c[1], p[2] - c[2])));
+  return { center: c, radius };
+}
