@@ -1,9 +1,9 @@
 // 전개도 만들기: 면을 눌러 떼고, 빈 자리(점선)를 눌러 붙인다. 붙이기 전에 돌릴 수 있다.
 // 접어 보기로 실제로 접히는 모습과 처음 도형과 같은지 확인한다.
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { QUAT_IDENTITY } from '../../engine/math';
 import { defaultRoot, hasPresets, netPresets, randomSpanningTree } from '../../engine/net';
-import { canDetach, cellsFromNet, foldCells, freeSlots, placeCell, rotateUp, type NetCell, type Slot } from '../../engine/netEdit';
+import { canDetach, cellsFromNet, edgeLength, foldCells, freeSlots, magnet, placeCell, rotateUp, type NetCell, type Slot } from '../../engine/netEdit';
 import { makeRng, randomSeed } from '../../engine/rng';
 import { symmetryGroup } from '../../engine/rotation';
 import { randomLabeling } from '../../engine/rules';
@@ -43,6 +43,10 @@ export function NetBuilder() {
   const [view, setView] = useState<'net' | 'fold'>('net');
   const [msg, setMsg] = useState<string | null>(null);
   const [moves, setMoves] = useState(0);
+  const [drag, setDrag] = useState<{ id: number; grab: Pt; center: Pt; moved: boolean; wasHeld: boolean } | null>(null);
+  const dragRef = useRef(drag);
+  dragRef.current = drag;
+  const svgRef = useRef<SVGSVGElement>(null);
 
   const solid = getSolid(solidId);
   const group = symmetryGroup(solidId);
@@ -64,18 +68,65 @@ export function NetBuilder() {
     setMoves(0);
   };
 
-  const clickCell = (c: NetCell) => {
-    if (held) {
-      if (held.id === c.id) setHeld(null);
-      return;
-    }
-    if (!canDetach(cells, c.id)) {
+  // 화면 좌표 → 전개도 좌표 (y 위가 +)
+  const toNet = (clientX: number, clientY: number): Pt | null => {
+    const svg = svgRef.current;
+    const m = svg?.getScreenCTM();
+    if (!svg || !m) return null;
+    const p = new DOMPoint(clientX, clientY).matrixTransform(m.inverse());
+    return [p.x, -p.y];
+  };
+  const centerOf = (pts: Pt[]): Pt => [pts.reduce((a, p) => a + p[0], 0) / pts.length, pts.reduce((a, p) => a + p[1], 0) / pts.length];
+
+  const pressCell = (c: NetCell, e: React.PointerEvent) => {
+    if (held?.id !== c.id && !canDetach(cells, c.id)) {
       setMsg('이 면을 떼면 전개도가 두 조각으로 나뉘어요. 가장자리에 있는 면을 골라 보세요.');
       return;
     }
+    const p = toNet(e.clientX, e.clientY);
+    if (!p) return;
+    e.preventDefault();
     setMsg(null);
-    setHeld({ id: c.id, up: c.up });
+    const wasHeld = held?.id === c.id;
+    if (!wasHeld) setHeld({ id: c.id, up: c.up });
+    const cc = centerOf(c.pts);
+    setDrag({ id: c.id, grab: [cc[0] - p[0], cc[1] - p[1]], center: cc, moved: false, wasHeld });
   };
+
+  useEffect(() => {
+    if (!drag) return;
+    const move = (e: PointerEvent) => {
+      const d = dragRef.current;
+      const p = toNet(e.clientX, e.clientY);
+      if (!d || !p) return;
+      const center: Pt = [p[0] + d.grab[0], p[1] + d.grab[1]];
+      setDrag({ ...d, center, moved: d.moved || Math.hypot(center[0] - d.center[0], center[1] - d.center[1]) > 0.05 });
+    };
+    const up = () => {
+      const d = dragRef.current;
+      setDrag(null);
+      if (!d) return;
+      const cell = cells.find((x) => x.id === d.id);
+      if (!cell) return;
+      const slotsNow = freeSlots(cells, d.id);
+      const m = magnet(slotsNow, d.center, edgeLength(cell));
+      if (m.slot) {
+        setCells((cs) => placeCell(cs, d.id, m.slot!, heldUpRef.current ?? cell.up));
+        setHeld(null);
+        setMoves((n) => n + 1);
+      } else if (d.moved || d.wasHeld) {
+        setHeld(null);
+      }
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+    return () => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+    };
+  }, [drag?.id, cells]); // eslint-disable-line react-hooks/exhaustive-deps
+  const heldUpRef = useRef<Pt | null>(null);
+  heldUpRef.current = held?.up ?? null;
 
   const place = (s: Slot) => {
     if (!held) return;
@@ -92,6 +143,7 @@ export function NetBuilder() {
   const maxY = Math.max(...allPts.map((p) => p[1])) + 0.3;
 
   const heldCell = held ? cells.find((c) => c.id === held.id)! : null;
+  const dragMag = drag && heldCell ? magnet(slots, drag.center, edgeLength(heldCell)) : null;
   const collide = !result.ok ? result.collide : null;
   const sameAsOriginal = result.ok && canonicalLabelSignature(solidId, result.labeling, group) === original;
   const fill = (sym: string) => (color ? getSymbol(sym).color : '#fbfaf7');
@@ -101,12 +153,12 @@ export function NetBuilder() {
       <div className="stage">
         <div className="canvas-wrap net-wrap">
           {view === 'net' ? (
-            <svg width="100%" height="100%" viewBox={`${minX} ${-maxY} ${maxX - minX} ${maxY - minY}`} preserveAspectRatio="xMidYMid meet">
+            <svg ref={svgRef} width="100%" height="100%" viewBox={`${minX} ${-maxY} ${maxX - minX} ${maxY - minY}`} preserveAspectRatio="xMidYMid meet" style={{ touchAction: 'none' }}>
               {cells.map((c) => {
                 const isHeld = held?.id === c.id;
                 const isBad = collide?.includes(c.id);
                 return (
-                  <g key={c.id} onClick={() => clickCell(c)} style={{ cursor: 'pointer' }}>
+                  <g key={c.id} onPointerDown={(e) => pressCell(c, e)} style={{ cursor: drag ? 'grabbing' : 'grab' }}>
                     <CellShape
                       cell={c}
                       size={symSize}
@@ -120,15 +172,41 @@ export function NetBuilder() {
               })}
               {heldCell &&
                 slots.map((s) => (
-                  <g key={s.key} onClick={() => place(s)} style={{ cursor: 'pointer' }}>
-                    <CellShape cell={{ pts: s.pts, up: held!.up, symbol: heldCell.symbol }} size={symSize} fill="#e8eefc" stroke="#2b4acb" strokeWidth={0.03} opacity={0.75} dash="0.08 0.06" />
+                  <g key={s.key} onClick={drag ? undefined : () => place(s)} style={{ cursor: 'pointer' }}>
+                    <CellShape
+                      cell={{ pts: s.pts, up: held!.up, symbol: heldCell.symbol }}
+                      size={symSize}
+                      fill={dragMag?.slot?.key === s.key ? '#fff3bf' : '#e8eefc'}
+                      stroke={dragMag?.slot?.key === s.key ? '#e67700' : '#2b4acb'}
+                      strokeWidth={dragMag?.slot?.key === s.key ? 0.06 : 0.03}
+                      opacity={drag ? 0.55 : 0.75}
+                      dash="0.08 0.06"
+                    />
                   </g>
                 ))}
+              {heldCell && held && drag && (
+                <g style={{ pointerEvents: 'none' }}>
+                  <CellShape
+                    cell={{
+                      pts:
+                        dragMag?.slot && dragMag.pull >= 1
+                          ? dragMag.slot.pts
+                          : heldCell.pts.map(([x, y]) => [x - centerOf(heldCell.pts)[0] + dragMag!.display[0], y - centerOf(heldCell.pts)[1] + dragMag!.display[1]] as Pt),
+                      up: held.up,
+                      symbol: heldCell.symbol,
+                    }}
+                    size={symSize}
+                    fill={dragMag?.slot ? '#ffe066' : '#fff'}
+                    stroke={dragMag?.slot ? '#e67700' : '#16181b'}
+                    strokeWidth={0.05}
+                  />
+                </g>
+              )}
             </svg>
           ) : result.ok ? (
             <FoldSolution sol={{ kind: 'fold', solidId, labeling: result.labeling, edges: result.edges, root: result.root, finalQ: QUAT_IDENTITY, ops: [], labels: [] }} size={360} />
           ) : null}
-          {view === 'net' && <div className="canvas-hint">{held ? '파란 점선 자리를 눌러 붙이세요' : '떼어 낼 면을 누르세요'}</div>}
+          {view === 'net' && <div className="canvas-hint">{held ? '파란 자리 가까이 끌어다 놓으면 붙어요' : '옮길 면을 꾹 눌러 끌어 보세요'}</div>}
         </div>
         <div className="playbar">
           {view === 'net' ? (
@@ -203,7 +281,7 @@ export function NetBuilder() {
               <p className="note">돌린 방향 그대로 붙어요. 칸 모양에 따라 가장 가까운 방향으로 맞춰져요.</p>
             </>
           ) : (
-            <p className="note">전개도에서 면을 누르면 떼어서 들 수 있어요.</p>
+            <p className="note">면을 꾹 눌러 끌어 보세요. 파란 자리 가까이 가면 자석처럼 끌려가 붙어요. 눌렀다 떼면 든 채로 있어서, 돌린 다음 놓을 수도 있어요.</p>
           )}
 
           <h3>접으면</h3>

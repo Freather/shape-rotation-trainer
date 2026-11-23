@@ -152,21 +152,22 @@ export function SolidSandbox() {
     setSelFace(null);
     setMoveMsg(null);
   };
-  const clickMoveCell = (id: number) => {
-    if (!moveCells) return;
-    if (held) {
-      if (held.id === id) setHeld(null);
-      return;
-    }
+  const canPickCell = (id: number): boolean => {
+    if (!moveCells) return false;
+    if (held?.id === id) return true;
     if (id === moveRoot) {
       setMoveMsg('색이 다른 면은 바닥 면이라 옮길 수 없어요. 다른 면을 골라 주세요.');
-      return;
+      return false;
     }
     if (!canDetach(moveCells, id)) {
       setMoveMsg('이 면을 떼면 전개도가 두 조각으로 나뉘어요. 끝에 달린 면을 골라 주세요.');
-      return;
+      return false;
     }
     setMoveMsg(null);
+    return true;
+  };
+  const pickCell = (id: number) => {
+    if (!moveCells || held?.id === id) return;
     setHeld({ id, up: moveCells.find((c) => c.id === id)!.up });
   };
   const clickSlot = (key: string) => {
@@ -238,8 +239,10 @@ export function SolidSandbox() {
                 slots={moveSlots}
                 badIds={moveResult && !moveResult.ok ? moveResult.collide : []}
                 mono={mono}
-                onCellClick={clickMoveCell}
                 onSlotClick={clickSlot}
+                canPick={canPickCell}
+                onDragStart={pickCell}
+                onDragCancel={() => setHeld(null)}
               />
             ) : (
             <Solid3D
@@ -264,7 +267,7 @@ export function SolidSandbox() {
             <OrbitControls ref={controls} makeDefault enablePan={false} minDistance={4} maxDistance={18} />
           </Canvas>
           <AxisLegend />
-          <div className="canvas-hint">{moveCells ? (held ? '파란 자리를 누르면 붙어요' : '옮길 면을 누르세요') : '끌면 보는 방향만 바뀌어요'}</div>
+          <div className="canvas-hint">{moveCells ? (held ? '끌어서 파란 자리 가까이 가져가면 붙어요' : '옮길 면을 꾹 눌러 끌어 보세요') : '끌면 보는 방향만 바뀌어요'}</div>
           {pl.justFinished !== null && <div className="toast">{pl.justFinished}번째 회전 끝</div>}
         </div>
         <div className="playbar">
@@ -413,7 +416,7 @@ export function SolidSandbox() {
                 </button>
               </div>
             ) : (
-              <p className="note">전개도에서 옮길 면을 누르세요. 파란 자리가 붙일 수 있는 곳이에요. 붙이기 전에 돌릴 수도 있어요.</p>
+              <p className="note">옮길 면을 꾹 눌러 끌어 보세요. 파란 자리 가까이 가면 자석처럼 끌려가 붙어요. 눌렀다 떼면 든 채로 있어서, 돌린 다음 파란 자리를 눌러 붙여도 돼요.</p>
             )}
             {moveResult?.ok ? (
               <div className={sameAsBefore ? 'status ok' : 'status'}>

@@ -1,7 +1,9 @@
 // three.js(R3F) 입체 렌더: 면마다 직접 만든 다각형 + Canvas 텍스처 기호.
 // 자세·펼침은 모두 엔진의 순수 함수 결과를 그대로 보여주기만 한다.
 
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useThree } from '@react-three/fiber';
+import { edgeLength, magnet, type Slot } from '../engine/netEdit';
 import * as THREE from 'three';
 import { getSymbol } from '../symbols/library';
 import { getSolid, faceCircumradius, type SolidId } from '../engine/solids';
@@ -253,6 +255,7 @@ function FlatCell({
   lift = 0,
   outline = '#111',
   onClick,
+  onPointerDown,
 }: {
   solidId: SolidId;
   root: number;
@@ -264,6 +267,7 @@ function FlatCell({
   lift?: number;
   outline?: string;
   onClick?: () => void;
+  onPointerDown?: (clientX: number, clientY: number) => void;
 }) {
   const map = planeMapper(solidId, root);
   const solid = getSolid(solidId);
@@ -309,6 +313,14 @@ function FlatCell({
               }
             : undefined
         }
+        onPointerDown={
+          onPointerDown
+            ? (e) => {
+                e.stopPropagation();
+                onPointerDown(e.nativeEvent.clientX, e.nativeEvent.clientY);
+              }
+            : undefined
+        }
       >
         <meshLambertMaterial map={tex} side={THREE.DoubleSide} transparent={opacity < 1} opacity={opacity} depthWrite={opacity >= 1} />
       </mesh>
@@ -337,8 +349,10 @@ export function NetCells3D({
   slots,
   badIds,
   mono,
-  onCellClick,
   onSlotClick,
+  canPick,
+  onDragStart,
+  onDragCancel,
 }: {
   solidId: SolidId;
   root: number;
@@ -349,18 +363,105 @@ export function NetCells3D({
   cells: EditCell[];
   heldId: number | null;
   heldUp: P2 | null;
-  slots: { key: string; pts: P2[] }[];
+  slots: { key: string; pts: P2[]; center: P2 }[];
   badIds: number[];
   mono: boolean;
-  onCellClick: (id: number) => void;
   onSlotClick: (key: string) => void;
+  /** 끌기를 시작해도 되는 면인지 (안 되면 이유를 보여주고 false) */
+  canPick: (id: number) => boolean;
+  onDragStart: (id: number) => void;
+  onDragCancel: () => void;
 }) {
   const held = cells.find((c) => c.id === heldId);
+  const inner = useRef<THREE.Group>(null);
+  const { camera, gl, controls } = useThree();
+  const [drag, setDrag] = useState<{ id: number; grab: P2; center: P2; moved: boolean; wasHeld: boolean } | null>(null);
+  const dragRef = useRef(drag);
+  dragRef.current = drag;
+  const map = planeMapper(solidId, root);
+
+  // 화면 좌표 → 루트 평면 위 2D 좌표
+  const toPlane = (clientX: number, clientY: number): P2 | null => {
+    const g = inner.current;
+    if (!g) return null;
+    g.updateMatrixWorld();
+    const rect = gl.domElement.getBoundingClientRect();
+    const ndc = new THREE.Vector2(((clientX - rect.left) / rect.width) * 2 - 1, -((clientY - rect.top) / rect.height) * 2 + 1);
+    const ray = new THREE.Raycaster();
+    ray.setFromCamera(ndc, camera);
+    const a = g.localToWorld(map.point([0, 0]));
+    const b = g.localToWorld(map.point([1, 0]));
+    const c = g.localToWorld(map.point([0, 1]));
+    const plane = new THREE.Plane().setFromCoplanarPoints(a, b, c);
+    const hit = new THREE.Vector3();
+    if (!ray.ray.intersectPlane(plane, hit)) return null;
+    const local = g.worldToLocal(hit);
+    const f = getSolid(solidId).faces[root];
+    const d: Vec3 = [local.x - f.center[0], local.y - f.center[1], local.z - f.center[2]];
+    const ex = map.vec([1, 0]);
+    return [dot(d, ex), dot(d, f.upRef)];
+  };
+
+  const centerOf = (pts: P2[]): P2 => [pts.reduce((s, p) => s + p[0], 0) / pts.length, pts.reduce((s, p) => s + p[1], 0) / pts.length];
+
+  // 끄는 동안 창 전체의 포인터 움직임을 따라감
+  useEffect(() => {
+    if (!drag) return;
+    const move = (e: PointerEvent) => {
+      const p = toPlane(e.clientX, e.clientY);
+      const d = dragRef.current;
+      if (!p || !d) return;
+      const center: P2 = [p[0] + d.grab[0], p[1] + d.grab[1]];
+      setDrag({ ...d, center, moved: d.moved || Math.hypot(center[0] - d.center[0], center[1] - d.center[1]) > 0.05 });
+    };
+    const up = () => {
+      const d = dragRef.current;
+      if (controls) (controls as unknown as { enabled: boolean }).enabled = true;
+      setDrag(null);
+      if (!d) return;
+      const cell = cells.find((c) => c.id === d.id);
+      if (!cell) return;
+      const m = magnet(slots as Slot[], d.center, edgeLength(cell));
+      if (m.slot) onSlotClick(m.slot.key);
+      else if (d.moved || d.wasHeld) onDragCancel();
+      // 처음 누르고 거의 안 움직였으면 든 상태를 유지 (파란 자리를 눌러도 붙일 수 있음). 든 면을 다시 누르면 내려놓음
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+    return () => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+    };
+  }, [drag?.id, slots, cells]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const startDrag = (id: number, clientX: number, clientY: number) => {
+    if (!canPick(id)) return;
+    const cell = cells.find((c) => c.id === id)!;
+    const p = toPlane(clientX, clientY);
+    if (!p) return;
+    const c = centerOf(cell.pts);
+    if (controls) (controls as unknown as { enabled: boolean }).enabled = false;
+    onDragStart(id);
+    setDrag({ id, grab: [c[0] - p[0], c[1] - p[1]], center: c, moved: false, wasHeld: heldId === id });
+  };
+
+  // 끌고 있는 칸 그리기: 자석에 끌리면 자리 쪽으로 당겨지고, 충분히 가까우면 자리 모양에 딱 맞춰짐
+  let dragged: React.ReactNode = null;
+  let target: string | null = null;
+  if (drag && held && heldUp) {
+    const m = magnet(slots as Slot[], drag.center, edgeLength(held));
+    target = m.slot?.key ?? null;
+    const c0 = centerOf(held.pts);
+    const pts: P2[] =
+      m.slot && m.pull >= 1 ? m.slot.pts : held.pts.map(([x, y]) => [x - c0[0] + m.display[0], y - c0[1] + m.display[1]] as P2);
+    dragged = <FlatCell solidId={solidId} root={root} pts={pts} up={heldUp} symbol={held.symbol} bg={m.slot ? '#ffe066' : '#fff'} lift={0.08} outline={m.slot ? '#e67700' : '#111'} />;
+  }
+
   return (
     <group scale={[fitScale, fitScale, fitScale]}>
       <group quaternion={new THREE.Quaternion(q[1], q[2], q[3], q[0])}>
         <group scale={[mirrored ? -1 : 1, 1, 1]}>
-          <group position={[-offset[0], -offset[1], -offset[2]]}>
+          <group ref={inner} position={[-offset[0], -offset[1], -offset[2]]}>
             {cells.map((c) => (
               <FlatCell
                 key={c.id}
@@ -372,15 +473,27 @@ export function NetCells3D({
                 bg={badIds.includes(c.id) ? '#ffc9c9' : c.id === root ? '#e9e5dc' : mono ? '#fbfaf7' : getSymbol(c.symbol).color}
                 outline={badIds.includes(c.id) ? '#c62828' : '#111'}
                 opacity={c.id === heldId ? 0.25 : 1}
-                lift={c.id === heldId ? 0.02 : 0}
-                onClick={() => onCellClick(c.id)}
+                onPointerDown={(x, y) => startDrag(c.id, x, y)}
               />
             ))}
             {held &&
               heldUp &&
               slots.map((s) => (
-                <FlatCell key={s.key} solidId={solidId} root={root} pts={s.pts} up={heldUp} symbol={held.symbol} bg="#d0dcfb" opacity={0.6} lift={0.01} outline="#2b4acb" onClick={() => onSlotClick(s.key)} />
+                <FlatCell
+                  key={s.key}
+                  solidId={solidId}
+                  root={root}
+                  pts={s.pts}
+                  up={heldUp}
+                  symbol={held.symbol}
+                  bg={target === s.key ? '#ffe066' : '#d0dcfb'}
+                  opacity={drag ? (target === s.key ? 0.5 : 0.35) : 0.6}
+                  lift={0.01}
+                  outline={target === s.key ? '#e67700' : '#2b4acb'}
+                  onClick={drag ? undefined : () => onSlotClick(s.key)}
+                />
               ))}
+            {dragged}
           </group>
         </group>
       </group>

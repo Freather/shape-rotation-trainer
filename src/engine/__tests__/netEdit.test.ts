@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { canDetach, cellsFromNet, foldCells, freeSlots, placeCell, rotateUp, type NetCell } from '../netEdit';
+import { canDetach, cellsFromNet, edgeLength, foldCells, freeSlots, magnet, placeCell, rotateUp, type NetCell } from '../netEdit';
 import { defaultRoot, net2D, netPresets, netShapeKey, type Net2D } from '../net';
 import { symmetryGroup } from '../rotation';
 import { canonicalLabelSignature, plainLabeling } from '../state';
@@ -104,5 +104,22 @@ describe('전개도 직접 만들기', () => {
         }
       }
     }
+  });
+
+  it('자석: 멀면 안 끌리고, 가까우면 붙을 자리를 알려주며, 아주 가까우면 완전히 붙음', () => {
+    const cells = cellsFromNet('cube', netPresets('cube')[0], 2, labFor('cube'));
+    const leaf = cells.find((c) => c.id !== 2 && canDetach(cells, c.id))!;
+    const slots = freeSlots(cells, leaf.id);
+    const e = edgeLength(leaf);
+    const target = slots[0];
+    const far = magnet(slots, [target.center[0] + 50, target.center[1] + 50], e);
+    expect(far.slot).toBeNull();
+    const near = magnet(slots, [target.center[0] + e * 0.4, target.center[1]], e);
+    expect(near.slot?.key).toBe(target.key);
+    expect(near.pull).toBeGreaterThan(0);
+    expect(near.pull).toBeLessThan(1);
+    const on = magnet(slots, [target.center[0] + e * 0.1, target.center[1]], e);
+    expect(on.pull).toBe(1);
+    expect(on.display[0]).toBeCloseTo(target.center[0], 9);
   });
 });

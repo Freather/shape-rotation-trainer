@@ -218,3 +218,40 @@ export function foldCells(solidId: SolidId, cells: NetCell[], anchor?: { cellId:
   faceOf.forEach((v, k) => (faceOfCell[k] = v));
   return { ok: true, labeling, edges: treeEdges.sort((x, y) => x - y), root, faceOfCell };
 }
+
+export interface MagnetResult {
+  /** 화면에 그릴 중심 (자석에 끌린 만큼 슬롯 쪽으로 당겨진 위치) */
+  display: Pt;
+  /** 놓으면 붙을 자리 (가까운 자리가 없으면 null) */
+  slot: Slot | null;
+  /** 0 = 안 끌림, 1 = 완전히 붙음 */
+  pull: number;
+}
+
+/**
+ * 자석 효과: 끌고 있는 칸의 중심이 빈 자리에 가까워지면 그쪽으로 당겨진다.
+ * 칸 한 변의 0.6배 안에 들어오면 놓았을 때 붙고, 0.25배 안이면 완전히 달라붙어 보인다.
+ */
+export function magnet(slots: Slot[], center: Pt, edge: number): MagnetResult {
+  let best: Slot | null = null;
+  let bestD = Infinity;
+  for (const s of slots) {
+    const d = Math.hypot(s.center[0] - center[0], s.center[1] - center[1]);
+    if (d < bestD) {
+      bestD = d;
+      best = s;
+    }
+  }
+  const reach = edge * 0.6;
+  const full = edge * 0.25;
+  if (!best || bestD > reach) return { display: center, slot: null, pull: 0 };
+  const t = bestD <= full ? 1 : 1 - (bestD - full) / (reach - full);
+  const pull = t * t * (3 - 2 * t);
+  return {
+    display: [center[0] + (best.center[0] - center[0]) * pull, center[1] + (best.center[1] - center[1]) * pull],
+    slot: best,
+    pull,
+  };
+}
+
+export const edgeLength = (cell: { pts: Pt[] }): number => Math.hypot(cell.pts[1][0] - cell.pts[0][0], cell.pts[1][1] - cell.pts[0][1]);
