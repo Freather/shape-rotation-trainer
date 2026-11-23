@@ -473,7 +473,7 @@ function genSameDiff(p: GenParams): Question {
     level: p.level,
     seed: p.seed,
     solidId,
-    prompt: '두 그림이 돌려서 같아지는 같은 도형인가?',
+    prompt: '두 그림은 같은 도형을 돌려 놓은 것인가? 한 도형의 면에는 모두 서로 다른 그림이 있다.',
     stem: [
       { kind: 'solid', look: lookA, caption: '(가)' },
       { kind: 'solid', look: lookB, caption: '(나)' },
@@ -482,7 +482,7 @@ function genSameDiff(p: GenParams): Question {
     answer: same ? 0 : 1,
     solution: same
       ? { kind: 'solid', solidId, labeling: lab, initial: sA, ops: op ? [op] : [], labels: ['(가)를 돌려 (나) 만들기'] }
-      : { kind: 'text', parts: [['어떻게 돌려도 (가)와 (나)의 보이는 면이 함께 맞지 않아요.'], ['같은 그림이 어느 면 옆에 있는지, 어느 쪽을 향하는지 비교해 보세요.']] },
+      : { kind: 'text', parts: [['어떻게 돌려도 (가)와 (나)의 보이는 면이 함께 맞지 않아요.'], ['두 그림에 함께 보이는 그림을 찾아, (가)를 돌려 그 그림을 (나)와 같은 자리·같은 방향에 놓아 보세요.'], ['그때 (가)의 다른 면이 (나)에서 보이는 자리로 오는데 그림이 다르면 다른 도형이에요.']] },
   };
 }
 
