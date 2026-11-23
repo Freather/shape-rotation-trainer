@@ -332,7 +332,9 @@ export function SolidSandbox() {
               ? held
                 ? '끌어서 파란 자리 가까이 가져가면 붙어요'
                 : '옮길 면을 꾹 눌러 끌어 보세요'
-              : handRotate && foldT === 0
+              : hand.twisting
+                ? '누른 면을 축으로 비트는 중'
+                : handRotate && foldT === 0
                 ? '도형을 끌면 돌아가요. 빈 곳을 끌면 보는 방향이 바뀌어요'
                 : '끌면 보는 방향만 바뀌어요'}
           </div>

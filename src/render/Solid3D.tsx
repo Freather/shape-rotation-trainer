@@ -540,5 +540,25 @@ export function AxisLine({ axis, color = '#e67700' }: { axis: Vec3; color?: stri
 export function ThreeBridge({ target }: { target: { current: { camera: THREE.Camera; gl: THREE.WebGLRenderer; controls: unknown } | null } }) {
   const { camera, gl, controls } = useThree();
   target.current = { camera, gl, controls };
+  // 3D 화면 위에서는 브라우저가 두 손가락을 화면 확대로 가져가지 않게 막음 (아이폰 사파리 포함)
+  useEffect(() => {
+    const el = gl.domElement.parentElement ?? gl.domElement;
+    el.style.touchAction = 'none';
+    gl.domElement.style.touchAction = 'none';
+    const stop = (e: Event) => e.preventDefault();
+    const stopMulti = (e: TouchEvent) => {
+      if (e.touches.length > 1) e.preventDefault();
+    };
+    el.addEventListener('gesturestart', stop, { passive: false });
+    el.addEventListener('gesturechange', stop, { passive: false });
+    el.addEventListener('gestureend', stop, { passive: false });
+    el.addEventListener('touchmove', stopMulti, { passive: false });
+    return () => {
+      el.removeEventListener('gesturestart', stop);
+      el.removeEventListener('gesturechange', stop);
+      el.removeEventListener('gestureend', stop);
+      el.removeEventListener('touchmove', stopMulti);
+    };
+  }, [gl]);
   return null;
 }

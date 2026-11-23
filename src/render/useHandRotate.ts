@@ -1,6 +1,7 @@
 // 손으로 돌리기: 도형을 끌어서 돌리고, 손을 떼면 가장 가까운 정확한 각도로 맞춘다.
 // - 한 손가락(또는 마우스): 축 후보 중 끄는 방향에 가장 잘 맞는 축으로 돈다.
-// - 두 손가락: 한 손가락으로 면을 누른 채 다른 손가락을 돌리면, 누른 면을 축으로 비틀어 돈다.
+// - 두 손가락: 한 손가락이 면을 누른 채 다른 손가락을 돌리면, 누른 면을 축으로 비틀어 돈다.
+//   두 손가락을 동시에 대거나, 다른 손가락이 먼저 닿아 있어도 된다.
 import { useRef, useState } from 'react';
 import * as THREE from 'three';
 import { dot, quatFromAxisAngle, type Vec3 } from '../engine/math';
@@ -34,22 +35,74 @@ export interface HandRotateOptions {
 /** 한 칸의 이 비율 이상 돌리면 그 칸으로 넘어감 */
 const COMMIT_RATIO = 0.3;
 
+// ---------- 화면에 닿아 있는 모든 손가락 (어느 화면에서든 공통) ----------
+interface Touch {
+  pos: [number, number];
+  type: string;
+  /** 마지막으로 눌렀거나 움직인 시각 */
+  t: number;
+}
+const touching = new Map<number, Touch>();
+/** 이만큼 아무 신호가 없던 손가락은 이미 뗀 것으로 본다 (떼는 신호를 놓친 경우 대비) */
+const STALE_MS = 4000;
+let trackerInstalled = false;
+function installTracker() {
+  if (trackerInstalled || typeof window === 'undefined') return;
+  trackerInstalled = true;
+  const opt = { capture: true, passive: true } as const;
+  window.addEventListener('pointerdown', (e) => touching.set(e.pointerId, { pos: [e.clientX, e.clientY], type: e.pointerType, t: performance.now() }), opt);
+  window.addEventListener(
+    'pointermove',
+    (e) => {
+      const tc = touching.get(e.pointerId);
+      if (tc) touching.set(e.pointerId, { ...tc, pos: [e.clientX, e.clientY], t: performance.now() });
+    },
+    opt,
+  );
+  const end = (e: PointerEvent) => touching.delete(e.pointerId);
+  window.addEventListener('pointerup', end, opt);
+  window.addEventListener('pointercancel', end, opt);
+  window.addEventListener('blur', () => touching.clear());
+  document.addEventListener('visibilitychange', () => touching.clear());
+}
+/** 지금 실제로 화면에 닿아 있다고 볼 수 있는 다른 손가락 */
+function otherLiveTouch(selfId: number): [number, [number, number]] | null {
+  const now = performance.now();
+  for (const [id, tc] of touching) {
+    if (id === selfId) continue;
+    if (now - tc.t > STALE_MS) {
+      touching.delete(id);
+      continue;
+    }
+    if (tc.type === 'touch') return [id, tc.pos];
+  }
+  return null;
+}
+
 export function useHandRotate(opts: HandRotateOptions) {
+  installTracker();
   const [dragRot, setDragRot] = useState<{ axis: Vec3; angle: number } | null>(null);
+  const [twisting, setTwisting] = useState(false);
   const suppressClick = useRef(false);
-  const active = useRef(false);
+  /** 진행 중인 동작의 손가락 id 들 (없으면 null) */
+  const active = useRef<number[] | null>(null);
+  const abortRef = useRef<(() => void) | null>(null);
   const optsRef = useRef(opts);
   optsRef.current = opts;
 
   const press = (face: number, point: Vec3, clientX: number, clientY: number, pointerId = 1): boolean => {
-    // 이미 잡고 있는 중이면 (두 번째 손가락이 면 위에 닿은 경우) 새로 시작하지 않음
-    if (active.current) return true;
+    if (active.current) {
+      // 이미 동작 중: 그 손가락들이 실제로 아직 닿아 있으면 새로 시작하지 않음
+      const now = performance.now();
+      if (active.current.some((id) => id !== pointerId && touching.has(id) && now - touching.get(id)!.t < STALE_MS)) return true;
+      // 손 떼는 신호를 놓쳐 멈춰 있던 동작이면 정리하고 새로 시작
+      abortRef.current?.();
+    }
     suppressClick.current = false;
     const o = optsRef.current;
     if (!o.enabled || !o.three.current) return false;
     const cands = o.candidates(face);
     if (!cands.length) return false;
-    active.current = true;
     const { camera, gl, controls } = o.three.current;
     const rect = gl.domElement.getBoundingClientRect();
     const toScreen = (v: Vec3) => {
@@ -69,12 +122,11 @@ export function useHandRotate(opts: HandRotateOptions) {
     const ctl = controls as { enabled: boolean } | null;
     if (ctl) ctl.enabled = false;
 
-    // 손가락 위치 (pointerId → 화면 좌표)
     const pts = new Map<number, [number, number]>([[pointerId, [clientX, clientY]]]);
+    active.current = [pointerId];
     let chosen: { c: AxisCandidate; towardViewer: number } | null = info.length === 1 ? info[0] : null;
     let single: (typeof info)[number] | null = info.length === 1 ? info[0] : null;
     let angle = 0;
-    // 두 손가락 비틀기 상태
     let twist: { c: AxisCandidate; towardViewer: number; start: number; ids: [number, number] } | null = null;
 
     const twoAngle = (a: [number, number], b: [number, number]) => Math.atan2(b[1] - a[1], b[0] - a[0]);
@@ -84,22 +136,31 @@ export function useHandRotate(opts: HandRotateOptions) {
       return a;
     };
 
-    const startTwist = (secondId: number) => {
+    const startTwist = (otherId: number) => {
       const tw = optsRef.current.twist?.(face);
       if (!tw) return;
       const a = pts.get(pointerId)!;
-      const b = pts.get(secondId)!;
-      twist = { c: tw, towardViewer: dot(tw.axis, CAMERA_DIR) >= 0 ? 1 : -1, start: twoAngle(a, b), ids: [pointerId, secondId] };
+      const b = pts.get(otherId)!;
+      twist = { c: tw, towardViewer: dot(tw.axis, CAMERA_DIR) >= 0 ? 1 : -1, start: twoAngle(a, b), ids: [pointerId, otherId] };
       chosen = twist;
       angle = 0;
+      active.current = [pointerId, otherId];
       suppressClick.current = true;
+      setTwisting(true);
       setDragRot({ axis: tw.axis, angle: 0 });
     };
+
+    // 다른 손가락이 이미 닿아 있으면 (동시에 대거나 먼저 댄 경우) 바로 비틀기
+    const other = otherLiveTouch(pointerId);
+    if (other) {
+      pts.set(other[0], other[1]);
+      startTwist(other[0]);
+    }
 
     const down = (e: PointerEvent) => {
       if (e.pointerId === pointerId || pts.has(e.pointerId)) return;
       pts.set(e.pointerId, [e.clientX, e.clientY]);
-      if (!twist && pts.size === 2) startTwist(e.pointerId);
+      if (!twist) startTwist(e.pointerId);
     };
 
     const move = (e: PointerEvent) => {
@@ -150,17 +211,23 @@ export function useHandRotate(opts: HandRotateOptions) {
       pts.delete(e.pointerId);
       // 비틀기 중엔 손가락 하나만 떼도 끝, 아니면 처음 손가락을 뗄 때 끝
       if (!twist && e.pointerId !== pointerId) return;
-      finishGesture();
+      finishGesture(true);
     };
 
-    const finishGesture = () => {
+    const detach = () => {
       window.removeEventListener('pointerdown', down, true);
-      window.removeEventListener('pointermove', move);
-      window.removeEventListener('pointerup', up);
-      window.removeEventListener('pointercancel', up);
+      window.removeEventListener('pointermove', move, true);
+      window.removeEventListener('pointerup', up, true);
+      window.removeEventListener('pointercancel', up, true);
       if (ctl) ctl.enabled = true;
-      active.current = false;
-      if (!chosen) {
+      active.current = null;
+      abortRef.current = null;
+      setTwisting(false);
+    };
+
+    const finishGesture = (snap: boolean) => {
+      detach();
+      if (!chosen || !snap) {
         setDragRot(null);
         return;
       }
@@ -191,11 +258,12 @@ export function useHandRotate(opts: HandRotateOptions) {
       requestAnimationFrame(tick);
       setTimeout(finish, 260);
     };
+    abortRef.current = () => finishGesture(false);
 
     window.addEventListener('pointerdown', down, true);
-    window.addEventListener('pointermove', move);
-    window.addEventListener('pointerup', up);
-    window.addEventListener('pointercancel', up);
+    window.addEventListener('pointermove', move, true);
+    window.addEventListener('pointerup', up, true);
+    window.addEventListener('pointercancel', up, true);
     return true;
   };
 
@@ -206,5 +274,5 @@ export function useHandRotate(opts: HandRotateOptions) {
     return was;
   };
 
-  return { dragRot, press, consumeClick };
+  return { dragRot, press, consumeClick, twisting };
 }
