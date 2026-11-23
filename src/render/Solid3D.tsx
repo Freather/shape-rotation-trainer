@@ -223,3 +223,167 @@ export function AxisLegend() {
     </div>
   );
 }
+
+// ---------------- 펼친 전개도에서 면 옮기기 (평면 칸 + 붙일 자리) ----------------
+
+type P2 = [number, number];
+
+/** 루트 면 평면 위의 2D 좌표 → 원래 도형 3D 좌표 */
+function planeMapper(solidId: SolidId, root: number) {
+  const f = getSolid(solidId).faces[root];
+  const ex: Vec3 = [f.upRef[1] * f.normal[2] - f.upRef[2] * f.normal[1], f.upRef[2] * f.normal[0] - f.upRef[0] * f.normal[2], f.upRef[0] * f.normal[1] - f.upRef[1] * f.normal[0]];
+  const ey = f.upRef;
+  return {
+    point: (p: P2, lift = 0): THREE.Vector3 => {
+      const v = add(add(add(f.center, scale(ex, p[0])), scale(ey, p[1])), scale(f.normal, lift));
+      return new THREE.Vector3(v[0], v[1], v[2]);
+    },
+    vec: (d: P2): Vec3 => add(scale(ex, d[0]), scale(ey, d[1])),
+  };
+}
+
+function FlatCell({
+  solidId,
+  root,
+  pts,
+  up,
+  symbol,
+  bg,
+  opacity = 1,
+  lift = 0,
+  outline = '#111',
+  onClick,
+}: {
+  solidId: SolidId;
+  root: number;
+  pts: P2[];
+  up: P2;
+  symbol: string;
+  bg: string;
+  opacity?: number;
+  lift?: number;
+  outline?: string;
+  onClick?: () => void;
+}) {
+  const map = planeMapper(solidId, root);
+  const solid = getSolid(solidId);
+  const R = faceCircumradius(solid, 0);
+  const c: P2 = [pts.reduce((s, p) => s + p[0], 0) / pts.length, pts.reduce((s, p) => s + p[1], 0) / pts.length];
+  const right: P2 = [up[1], -up[0]];
+  const key = `${pts.map((p) => p.map((x) => x.toFixed(3)).join(',')).join(';')}|${up.map((x) => x.toFixed(3)).join(',')}|${lift}`;
+  const geom = useMemo(() => {
+    const pos: number[] = [];
+    const uv: number[] = [];
+    const push = (p: P2) => {
+      const v = map.point(p, lift);
+      pos.push(v.x, v.y, v.z);
+      const d: P2 = [p[0] - c[0], p[1] - c[1]];
+      uv.push(0.5 + (d[0] * right[0] + d[1] * right[1]) / (2 * R), 0.5 + (d[0] * up[0] + d[1] * up[1]) / (2 * R));
+    };
+    for (let i = 0; i < pts.length; i++) {
+      push(c);
+      push(pts[i]);
+      push(pts[(i + 1) % pts.length]);
+    }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+    g.computeVertexNormals();
+    return g;
+  }, [key]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => () => geom.dispose(), [geom]);
+  const line = useMemo(() => {
+    const g = new THREE.BufferGeometry().setFromPoints(pts.map((p) => map.point(p, lift + 0.004)));
+    return new THREE.LineLoop(g, new THREE.LineBasicMaterial({ color: outline }));
+  }, [key, outline]); // eslint-disable-line react-hooks/exhaustive-deps
+  const tex = faceTexture(symbol, bg, symbolWorldSize(solidId) / (2 * R));
+  return (
+    <group>
+      <mesh
+        geometry={geom}
+        onClick={
+          onClick
+            ? (e) => {
+                e.stopPropagation();
+                onClick();
+              }
+            : undefined
+        }
+      >
+        <meshLambertMaterial map={tex} side={THREE.DoubleSide} transparent={opacity < 1} opacity={opacity} depthWrite={opacity >= 1} />
+      </mesh>
+      <primitive object={line} />
+    </group>
+  );
+}
+
+export interface EditCell {
+  id: number;
+  symbol: string;
+  pts: P2[];
+  up: P2;
+}
+
+export function NetCells3D({
+  solidId,
+  root,
+  q,
+  mirrored,
+  offset,
+  fitScale,
+  cells,
+  heldId,
+  heldUp,
+  slots,
+  badIds,
+  mono,
+  onCellClick,
+  onSlotClick,
+}: {
+  solidId: SolidId;
+  root: number;
+  q: Quat;
+  mirrored: boolean;
+  offset: Vec3;
+  fitScale: number;
+  cells: EditCell[];
+  heldId: number | null;
+  heldUp: P2 | null;
+  slots: { key: string; pts: P2[] }[];
+  badIds: number[];
+  mono: boolean;
+  onCellClick: (id: number) => void;
+  onSlotClick: (key: string) => void;
+}) {
+  const held = cells.find((c) => c.id === heldId);
+  return (
+    <group scale={[fitScale, fitScale, fitScale]}>
+      <group quaternion={new THREE.Quaternion(q[1], q[2], q[3], q[0])}>
+        <group scale={[mirrored ? -1 : 1, 1, 1]}>
+          <group position={[-offset[0], -offset[1], -offset[2]]}>
+            {cells.map((c) => (
+              <FlatCell
+                key={c.id}
+                solidId={solidId}
+                root={root}
+                pts={c.pts}
+                up={c.up}
+                symbol={c.symbol}
+                bg={badIds.includes(c.id) ? '#ffc9c9' : c.id === root ? '#e9e5dc' : mono ? '#fbfaf7' : getSymbol(c.symbol).color}
+                outline={badIds.includes(c.id) ? '#c62828' : '#111'}
+                opacity={c.id === heldId ? 0.25 : 1}
+                lift={c.id === heldId ? 0.02 : 0}
+                onClick={() => onCellClick(c.id)}
+              />
+            ))}
+            {held &&
+              heldUp &&
+              slots.map((s) => (
+                <FlatCell key={s.key} solidId={solidId} root={root} pts={s.pts} up={heldUp} symbol={held.symbol} bg="#d0dcfb" opacity={0.6} lift={0.01} outline="#2b4acb" onClick={() => onSlotClick(s.key)} />
+              ))}
+          </group>
+        </group>
+      </group>
+    </group>
+  );
+}

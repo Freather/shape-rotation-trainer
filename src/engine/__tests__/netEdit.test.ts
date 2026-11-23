@@ -83,4 +83,26 @@ describe('전개도 직접 만들기', () => {
     }
     expect(foundCollision).toBe(true);
   });
+
+  it('기준 면을 고정하면 다시 펼친 전개도가 사용자가 만든 배치와 좌표까지 같음', () => {
+    const lab = labFor('cube');
+    const tree = netPresets('cube')[2];
+    const cells = cellsFromNet('cube', tree, 2, lab);
+    for (const c of cells) {
+      if (c.id === 2 || !canDetach(cells, c.id)) continue;
+      for (const slot of freeSlots(cells, c.id)) {
+        const moved = placeCell(cells, c.id, slot, c.up);
+        const r = foldCells('cube', moved, { cellId: 2, face: 2 });
+        if (!r.ok) continue;
+        const back = net2D('cube', r.edges, 2, r.labeling);
+        for (const mc of moved) {
+          const f = back.faces[r.faceOfCell[mc.id]];
+          const cx = mc.pts.reduce((s, p) => s + p[0], 0) / 4;
+          const cy = mc.pts.reduce((s, p) => s + p[1], 0) / 4;
+          expect(Math.hypot(f.center[0] - cx, f.center[1] - cy)).toBeLessThan(1e-6);
+          expect(Math.hypot(f.up[0] - mc.up[0], f.up[1] - mc.up[1])).toBeLessThan(1e-6);
+        }
+      }
+    }
+  });
 });

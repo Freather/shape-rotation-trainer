@@ -5,14 +5,17 @@ import { OrbitControls } from '@react-three/drei';
 import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
 import { SYMBOLS } from '../../symbols/library';
 import { CAMERA_DIR, SOLID_IDS, SOLID_NAMES, getSolid, type SolidId } from '../../engine/solids';
-import { QUAT_IDENTITY, deg, dot, quatFromAxisAngle, quatFromTo, quatMul, quatSlerp, type Quat } from '../../engine/math';
+import { QUAT_IDENTITY, add, cross, deg, dot, quatFromAxisAngle, quatFromTo, quatMul, quatSlerp, scale, type Quat, type Vec3 } from '../../engine/math';
 import { describeOp, type Dir, type RotationOp, type View } from '../../engine/rotation';
 import { resolveOp, slots, stateHistory, transformVec, type Labeling, type SolidState } from '../../engine/state';
 import { foldBounds, foldTransforms, hasPresets, netPresets, randomSpanningTree, type UnfoldMode } from '../../engine/net';
 import { makeRng, randomSeed } from '../../engine/rng';
 import { randomLabeling } from '../../engine/rules';
 import { useSettings } from '../../store';
-import { AxisGizmo, AxisLegend, Solid3D } from '../../render/Solid3D';
+import { AxisGizmo, AxisLegend, NetCells3D, Solid3D, type EditCell } from '../../render/Solid3D';
+import { canDetach, cellsFromNet, foldCells, freeSlots, placeCell, rotateUp } from '../../engine/netEdit';
+import { symmetryGroup } from '../../engine/rotation';
+import { canonicalLabelSignature } from '../../engine/state';
 import { easeInOut, usePlayer } from '../../render/usePlayer';
 import { Parts } from '../../ui/Parts';
 import { InlineGlyph } from '../../render/Glyph';
@@ -41,6 +44,13 @@ export function SolidSandbox() {
   const [mode, setMode] = useState<UnfoldMode>('all');
   const [netIdx, setNetIdx] = useState(0);
   const [randTree, setRandTree] = useState<number[] | null>(null);
+  // 펼친 전개도에서 면 옮기기
+  const [customTree, setCustomTree] = useState<number[] | null>(null);
+  const [moveCells, setMoveCells] = useState<EditCell[] | null>(null);
+  const [moveRoot, setMoveRoot] = useState(0);
+  const [held, setHeld] = useState<{ id: number; up: [number, number] } | null>(null);
+  const [moveMsg, setMoveMsg] = useState<string | null>(null);
+  const [snapshot, setSnapshot] = useState<{ lab: Labeling; tree: number[] | null } | null>(null);
   const foldAnim = useRef<number | null>(null);
   const controls = useRef<OrbitControlsImpl | null>(null);
 
@@ -58,6 +68,9 @@ export function SolidSandbox() {
     setFoldT(0);
     setNetIdx(0);
     setRandTree(null);
+    setCustomTree(null);
+    setMoveCells(null);
+    setHeld(null);
     pl.reset();
   };
 
@@ -79,13 +92,33 @@ export function SolidSandbox() {
     return info[best].face;
   }, [cur, solid]);
   const tree = useMemo(() => {
+    if (customTree) return customTree;
     if (hasPresets(solidId)) return netPresets(solidId)[netIdx % netPresets(solidId).length];
     return randTree ?? randomSpanningTree(solidId, makeRng(1));
-  }, [solidId, netIdx, randTree]);
+  }, [solidId, netIdx, randTree, customTree]);
   const foldTransformsNow = foldT > 0 ? foldTransforms(solidId, tree, root, foldT, mode) : null;
   // 펼칠수록 전개도 중심을 화면 가운데로, 전체 크기를 화면에 맞게
   const bounds = foldTransformsNow ? foldBounds(solidId, foldTransformsNow) : null;
-  const fitScale = bounds ? Math.min(1, 2.3 / bounds.radius) : 1;
+  let fitScale = bounds ? Math.min(1, 2.3 / bounds.radius) : 1;
+
+  // 면 옮기기 모드 계산
+  const moveSlots = moveCells && held ? freeSlots(moveCells, held.id) : [];
+  const moveResult = moveCells ? foldCells(solidId, moveCells, { cellId: moveRoot, face: moveRoot }) : null;
+  const group = symmetryGroup(solidId);
+  const sameAsBefore = !!snapshot && !!moveResult?.ok && canonicalLabelSignature(solidId, moveResult.labeling, group) === canonicalLabelSignature(solidId, snapshot.lab, group);
+  let moveOffset: Vec3 = [0, 0, 0];
+  if (moveCells) {
+    const pts = [...moveCells.flatMap((c) => c.pts), ...moveSlots.flatMap((sl) => sl.pts)];
+    const xs = pts.map((p) => p[0]);
+    const ys = pts.map((p) => p[1]);
+    const cx = (Math.min(...xs) + Math.max(...xs)) / 2;
+    const cy = (Math.min(...ys) + Math.max(...ys)) / 2;
+    const rf = solid.faces[moveRoot];
+    const ex = cross(rf.upRef, rf.normal);
+    moveOffset = add(add(rf.center, scale(ex, cx)), scale(rf.upRef, cy));
+    const radius = Math.max(...pts.map((p) => Math.hypot(p[0] - cx, p[1] - cy)));
+    fitScale = Math.min(1, 2.4 / radius);
+  }
   if (foldT > 0) {
     const align = quatFromTo(transformVec(cur, solid.faces[root].normal), CAMERA_DIR);
     q = quatMul(quatSlerp(QUAT_IDENTITY, align, foldT), q);
@@ -108,6 +141,62 @@ export function SolidSandbox() {
   }, []);
 
   const push = (op: RotationOp) => setQueue((qq) => [...qq, op]);
+
+  const startMove = () => {
+    if (foldAnim.current) cancelAnimationFrame(foldAnim.current);
+    setFoldT(1);
+    setMoveRoot(root);
+    setMoveCells(cellsFromNet(solidId, tree, root, lab));
+    setSnapshot({ lab, tree: customTree });
+    setHeld(null);
+    setSelFace(null);
+    setMoveMsg(null);
+  };
+  const clickMoveCell = (id: number) => {
+    if (!moveCells) return;
+    if (held) {
+      if (held.id === id) setHeld(null);
+      return;
+    }
+    if (id === moveRoot) {
+      setMoveMsg('색이 다른 면은 바닥 면이라 옮길 수 없어요. 다른 면을 골라 주세요.');
+      return;
+    }
+    if (!canDetach(moveCells, id)) {
+      setMoveMsg('이 면을 떼면 전개도가 두 조각으로 나뉘어요. 끝에 달린 면을 골라 주세요.');
+      return;
+    }
+    setMoveMsg(null);
+    setHeld({ id, up: moveCells.find((c) => c.id === id)!.up });
+  };
+  const clickSlot = (key: string) => {
+    if (!moveCells || !held) return;
+    const slot = moveSlots.find((x) => x.key === key);
+    if (!slot) return;
+    const next = placeCell(moveCells, held.id, slot, held.up);
+    setMoveCells(next);
+    setHeld(null);
+    const r = foldCells(solidId, next, { cellId: moveRoot, face: moveRoot });
+    if (r.ok) {
+      setLab(r.labeling);
+      setCustomTree(r.edges);
+    }
+  };
+  const finishMove = (fold: boolean) => {
+    if (!moveResult?.ok) return;
+    setMoveCells(null);
+    setHeld(null);
+    if (fold) setTimeout(() => animateFold(0), 50);
+  };
+  const cancelMove = () => {
+    if (snapshot) {
+      setLab(snapshot.lab);
+      setCustomTree(snapshot.tree);
+    }
+    setMoveCells(null);
+    setHeld(null);
+    setMoveMsg(null);
+  };
   const commitHere = () => {
     // 현재 상태를 새 시작점으로
     setStart(cur);
@@ -135,6 +224,24 @@ export function SolidSandbox() {
             <FitCamera />
             <ambientLight intensity={1.7} />
             <directionalLight position={[-3, 6, 4]} intensity={1.3} />
+            {moveCells ? (
+              <NetCells3D
+                solidId={solidId}
+                root={moveRoot}
+                q={q}
+                mirrored={cur.mirrored}
+                offset={moveOffset}
+                fitScale={fitScale}
+                cells={moveCells}
+                heldId={held?.id ?? null}
+                heldUp={held?.up ?? null}
+                slots={moveSlots}
+                badIds={moveResult && !moveResult.ok ? moveResult.collide : []}
+                mono={mono}
+                onCellClick={clickMoveCell}
+                onSlotClick={clickSlot}
+              />
+            ) : (
             <Solid3D
               solidId={solidId}
               labeling={lab}
@@ -152,11 +259,12 @@ export function SolidSandbox() {
                 if (f !== selFace) setTab('edit');
               }}
             />
+            )}
             <AxisGizmo />
             <OrbitControls ref={controls} makeDefault enablePan={false} minDistance={4} maxDistance={18} />
           </Canvas>
           <AxisLegend />
-          <div className="canvas-hint">끌면 보는 방향만 바뀌어요</div>
+          <div className="canvas-hint">{moveCells ? (held ? '파란 자리를 누르면 붙어요' : '옮길 면을 누르세요') : '끌면 보는 방향만 바뀌어요'}</div>
           {pl.justFinished !== null && <div className="toast">{pl.justFinished}번째 회전 끝</div>}
         </div>
         <div className="playbar">
@@ -180,7 +288,7 @@ export function SolidSandbox() {
           {pl.playing ? (
             <button onClick={pl.pause}>멈춤</button>
           ) : (
-            <button className="primary" onClick={pl.play} disabled={!queue.length}>
+            <button className="primary" onClick={pl.play} disabled={!queue.length || !!moveCells}>
               재생
             </button>
           )}
@@ -292,7 +400,44 @@ export function SolidSandbox() {
           </div>
         )}
 
-        {tab === 'unfold' && (
+        {tab === 'unfold' && moveCells && (
+          <div className="side-body">
+            <h3>면 옮기기</h3>
+            {held ? (
+              <div className="btn-row">
+                <InlineGlyph id={moveCells.find((c) => c.id === held.id)!.symbol} size={28} />
+                <button onClick={() => setHeld({ ...held, up: rotateUp(held.up, solid.sides, 1) as [number, number] })}>↺ 돌리기</button>
+                <button onClick={() => setHeld({ ...held, up: rotateUp(held.up, solid.sides, -1) as [number, number] })}>↻ 돌리기</button>
+                <button className="link" onClick={() => setHeld(null)}>
+                  내려놓기
+                </button>
+              </div>
+            ) : (
+              <p className="note">전개도에서 옮길 면을 누르세요. 파란 자리가 붙일 수 있는 곳이에요. 붙이기 전에 돌릴 수도 있어요.</p>
+            )}
+            {moveResult?.ok ? (
+              <div className={sameAsBefore ? 'status ok' : 'status'}>
+                접으면 {solid.name}가 돼요. {sameAsBefore ? '옮기기 전 도형과 똑같아요.' : '옮기기 전 도형과는 달라요.'}
+              </div>
+            ) : (
+              <div className="status ng">빨간 면 두 개가 접었을 때 같은 자리에 겹쳐요. 둘 중 하나를 다른 곳으로 옮겨 보세요.</div>
+            )}
+            {moveMsg && <p className="note bad">{moveMsg}</p>}
+            <div className="btn-row">
+              <button className="primary" disabled={!moveResult?.ok || !!held} onClick={() => finishMove(true)}>
+                이대로 접기
+              </button>
+              <button disabled={!moveResult?.ok || !!held} onClick={() => finishMove(false)}>
+                옮기기 끝내기
+              </button>
+              <button className="link" onClick={cancelMove}>
+                옮기기 전으로
+              </button>
+            </div>
+          </div>
+        )}
+
+        {tab === 'unfold' && !moveCells && (
           <div className="side-body">
             <div className="btn-row">
               <button className="primary" onClick={() => animateFold(1)}>
@@ -316,7 +461,7 @@ export function SolidSandbox() {
               {hasPresets(solidId) ? (
                 <>
                   <span className="small muted">전개도 모양</span>
-                  <select value={netIdx} onChange={(e) => setNetIdx(Number(e.target.value))}>
+                  <select value={netIdx} onChange={(e) => { setNetIdx(Number(e.target.value)); setCustomTree(null); }}>
                     {netPresets(solidId).map((_, i) => (
                       <option key={i} value={i}>
                         {i + 1}번 / {netPresets(solidId).length}가지
@@ -325,10 +470,18 @@ export function SolidSandbox() {
                   </select>
                 </>
               ) : (
-                <button onClick={() => setRandTree(randomSpanningTree(solidId, makeRng(randomSeed())))}>다른 모양으로</button>
+                <button onClick={() => { setRandTree(randomSpanningTree(solidId, makeRng(randomSeed()))); setCustomTree(null); }}>다른 모양으로</button>
               )}
             </div>
-            <p className="note">지금 앞에 보이는 면을 바닥에 두고 펼쳐요. 돌리던 중에도 그 모양 그대로 펼칠 수 있어요.</p>
+            <div className="btn-row">
+              <button onClick={startMove}>면 옮기기</button>
+              {customTree && (
+                <button className="link" onClick={() => setCustomTree(null)}>
+                  원래 전개도 모양으로
+                </button>
+              )}
+            </div>
+            <p className="note">지금 앞에 보이는 면을 바닥에 두고 펼쳐요. "면 옮기기"를 누르면 펼친 상태에서 면을 떼어 다른 모서리에 붙여 볼 수 있어요.</p>
           </div>
         )}
 

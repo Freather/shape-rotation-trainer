@@ -143,11 +143,12 @@ export type FoldResult =
   | { ok: false; collide: [number, number] };
 
 /** 칸들을 접어서 입체의 면에 대응시킨다 */
-export function foldCells(solidId: SolidId, cells: NetCell[]): FoldResult {
+export function foldCells(solidId: SolidId, cells: NetCell[], anchor?: { cellId: number; face: number }): FoldResult {
   const solid = getSolid(solidId);
   const n = solid.sides;
-  const rootCell = cells[0];
-  const root = solid.id === 'cube' ? 2 : 0;
+  // 기준 칸: 꼭짓점 i 가 입체 면의 i 번째 꼭짓점과 맞는 칸 (cellsFromNet 으로 만든 뒤 옮기지 않은 칸)
+  const rootCell = anchor ? cells.find((c) => c.id === anchor.cellId)! : cells[0];
+  const root = anchor ? anchor.face : solid.id === 'cube' ? 2 : 0;
   // 칸의 꼭짓점 번호 → 입체 꼭짓점 번호
   const vmap = new Map<number, number[]>();
   const faceOf = new Map<number, number>();
