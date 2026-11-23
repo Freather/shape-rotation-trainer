@@ -102,7 +102,7 @@ function FaceMesh({
   highlight: boolean;
   transform?: RigidTransform;
   onClick?: (face: number) => void;
-  onPress?: (face: number, point: Vec3, clientX: number, clientY: number) => boolean;
+  onPress?: (face: number, point: Vec3, clientX: number, clientY: number, pointerId: number) => boolean;
 }) {
   const solid = getSolid(solidId);
   const f = solid.faces[face];
@@ -139,7 +139,7 @@ function FaceMesh({
         onPointerDown={
           onPress
             ? (e) => {
-                if (onPress(face, [e.point.x, e.point.y, e.point.z], e.nativeEvent.clientX, e.nativeEvent.clientY)) e.stopPropagation();
+                if (onPress(face, [e.point.x, e.point.y, e.point.z], e.nativeEvent.clientX, e.nativeEvent.clientY, e.nativeEvent.pointerId)) e.stopPropagation();
               }
             : undefined
         }
@@ -174,7 +174,7 @@ export interface Solid3DProps {
   highlight?: number[];
   onFaceClick?: (face: number) => void;
   /** 면을 누르는 순간 (true 를 돌려주면 그 누름을 가져감) */
-  onFacePress?: (face: number, point: Vec3, clientX: number, clientY: number) => boolean;
+  onFacePress?: (face: number, point: Vec3, clientX: number, clientY: number, pointerId: number) => boolean;
 }
 
 export function Solid3D({ solidId, labeling, q, mirrored, worldScaleX = 1, foldT, offset, fitScale = 1, mono = false, translucent = false, highlight = [], onFaceClick, onFacePress }: Solid3DProps) {

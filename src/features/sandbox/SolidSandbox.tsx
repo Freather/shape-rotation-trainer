@@ -120,6 +120,8 @@ export function SolidSandbox() {
         : handAxis === 'face'
           ? [faceCandidate(selFace ?? face)]
           : [viewCandidate(handAxis)],
+    // 두 손가락: 누른 면을 축으로 비틀기
+    twist: faceCandidate,
   });
   const dragRot = hand.dragRot;
   if (dragRot) q = quatMul(quatFromAxisAngle(dragRot.axis, dragRot.angle), q);
@@ -432,7 +434,7 @@ export function SolidSandbox() {
                   {handAxis === 'auto'
                     ? '끄는 방향에 맞는 축을 알아서 골라 돌려요. 돌아가는 동안 그 축이 주황 점선으로 보여요.'
                     : '주황 점선이 고정된 축이에요. 도형을 끌면 그 축으로만 돌아요.'}{' '}
-                  조금만 끌어도 다음 각도로 넘어가고, 손을 떼면 각도가 딱 맞춰진 뒤 아래 기록에 쌓여요.
+                  조금만 끌어도 다음 각도로 넘어가고, 손을 떼면 각도가 딱 맞춰진 뒤 아래 기록에 쌓여요. 휴대폰에서는 한 손가락으로 면을 누른 채 다른 손가락을 돌리면 그 면을 축으로 비틀어 돌아요.
                   {handAxis === 'face' && ' 미리 고른 면이 있으면 그 면, 없으면 누른 면이 축이 돼요.'}
                 </p>
               </>

@@ -93,6 +93,8 @@ export function SolidScratch({ scratch, rules }: { scratch: Extract<Scratch, { k
     // 자동: 끄는 방향을 보고 앞뒤·위아래·좌우·누른 면 축 중 가장 잘 맞는 축으로 돌림
     candidates: (face) =>
       axis === 'auto' ? [...VIEWS[solidId].views.map(viewCandidate), faceCandidate(face)] : axis === 'face' ? [faceCandidate(face)] : [viewCandidate(axis)],
+    // 두 손가락: 누른 면을 축으로 비틀기
+    twist: faceCandidate,
   });
 
   // 표시 자세
@@ -204,7 +206,7 @@ export function SolidScratch({ scratch, rules }: { scratch: Extract<Scratch, { k
       <p className="note">
         {net && foldT > 0 ? '다 접어야 손으로 돌릴 수 있어요. ' : ''}
         {axis === 'auto' ? '끄는 방향에 맞는 축을 알아서 골라 돌려요. ' : '고른 축으로만 돌아요. '}
-        조금만 끌어도 다음 각도로 넘어가고, 손을 떼면 각도가 딱 맞춰져요. 빈 곳을 끌면 보는 방향만 바뀌어요.
+        조금만 끌어도 다음 각도로 넘어가고, 손을 떼면 각도가 딱 맞춰져요. 휴대폰에서는 한 손가락으로 면을 누른 채 다른 손가락을 돌리면 그 면을 축으로 비틀어 돌아요. 빈 곳을 끌면 보는 방향만 바뀌어요.
       </p>
     </div>
   );
