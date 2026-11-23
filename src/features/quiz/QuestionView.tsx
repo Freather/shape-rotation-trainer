@@ -21,6 +21,7 @@ export function QuestionView({
 }) {
   const [showSol, setShowSol] = useState(false);
   const textOptions = q.options.some((o) => o.figure.kind === 'text' || o.figure.kind === 'ox');
+  const correct = selected === q.answer;
   return (
     <div className="question paper">
       <div className="q-head">
@@ -33,7 +34,7 @@ export function QuestionView({
           <FigureView key={i} fig={f} size={q.stem.length > 1 ? 170 : 200} />
         ))}
         {q.seq && (
-          <div className="seq">
+          <div className="seq" aria-label="적용할 규칙 순서">
             {q.seq.map((id, i) => (
               <span key={i}>
                 {i > 0 && <span className="seq-arrow">→</span>}
@@ -55,29 +56,33 @@ export function QuestionView({
       <div className={textOptions ? 'options options-text' : 'options'}>
         {q.options.map((o, i) => {
           const cls = ['option'];
-          if (selected === i) cls.push('selected');
+          if (!revealed && selected === i) cls.push('selected');
           if (revealed && i === q.answer) cls.push('correct');
           if (revealed && selected === i && i !== q.answer) cls.push('wrong');
           return (
             <button key={i} className={cls.join(' ')} onClick={onSelect ? () => onSelect(i) : undefined} disabled={!onSelect}>
               <span className="opt-mark">{optionMark(i)}</span>
               <FigureView fig={o.figure} size={q.options.length > 2 ? 120 : 100} />
-              {revealed && i !== q.answer && <span className="opt-tag">{MISTAKE_NAMES[o.tag]}</span>}
+              {revealed && (
+                <span className="opt-labels">
+                  {selected === i && <span className="label mine">내 답</span>}
+                  {i === q.answer && <span className="label answer">정답</span>}
+                  {i !== q.answer && selected === i && <span className="label tag">{MISTAKE_NAMES[o.tag]}</span>}
+                </span>
+              )}
             </button>
           );
         })}
       </div>
       {revealed && (
         <div className="feedback">
-          {selected === null ? (
-            <b className="bad">미응답 — 정답 {optionMark(q.answer)}</b>
-          ) : selected === q.answer ? (
-            <b className="good">정답!</b>
-          ) : (
-            <b className="bad">
-              오답 — 정답은 {optionMark(q.answer)} (고른 보기: {MISTAKE_NAMES[q.options[selected].tag]})
-            </b>
-          )}
+          <div className={correct ? 'result-line good' : 'result-line bad'}>
+            {selected === null
+              ? `답을 고르지 않았어요. 정답은 ${optionMark(q.answer)}번이에요.`
+              : correct
+                ? '맞았어요.'
+                : `틀렸어요. 정답은 ${optionMark(q.answer)}번이에요. 고른 보기는 '${MISTAKE_NAMES[q.options[selected].tag]}' 함정이었어요.`}
+          </div>
           <button onClick={() => setShowSol((s) => !s)}>{showSol ? '풀이 닫기' : '풀이 보기'}</button>
           {showSol && <SolutionView sol={q.solution} />}
         </div>

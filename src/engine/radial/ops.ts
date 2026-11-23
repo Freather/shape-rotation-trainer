@@ -137,29 +137,29 @@ const dirText = (d: Dir) => (d === 'cw' ? '시계방향' : '반시계방향');
 export function describeRadialOp(op: RadialOp): TextPart[] {
   switch (op.kind) {
     case 'rotate':
-      return [`도형 전체를 ${dirText(op.dir)} ${op.angle}° 회전`];
+      return [`전체를 ${dirText(op.dir)} ${op.angle}° 회전`];
     case 'rotateRing':
       return [`${RING_NAMES[op.ring]} 층만 ${dirText(op.dir)} ${op.steps}칸 회전`];
     case 'rotateOpposite':
-      return [`안쪽 층은 ${dirText(op.dir)}, 바깥 층은 ${dirText(op.dir === 'cw' ? 'ccw' : 'cw')}으로 ${op.steps}칸씩 회전`];
+      return [`안쪽 층은 ${dirText(op.dir)}, 바깥 층은 반대로 ${op.steps}칸씩 회전`];
     case 'mirror':
       return [MIRROR_AXIS_NAMES[op.axis]];
     case 'invert':
-      return ['전체 색반전 (흰 칸 ↔ 검은 칸)'];
+      return ['흰 칸과 검은 칸을 모두 바꿈'];
     case 'invertRing':
-      return [`${RING_NAMES[op.ring]} 층만 색반전`];
+      return [`${RING_NAMES[op.ring]} 층만 색 바꿈`];
     case 'invertSymbolCells':
-      return ['그림이 있는 칸만 색반전'];
+      return ['그림이 있는 칸만 색 바꿈'];
     case 'moveSymbols':
       return [
-        `모든 그림을 ${dirText(op.dir)} 옆 칸으로 ${op.steps}칸 이동 (색은 제자리, ${op.withRot ? '그림 방향도 같이 회전' : '그림 방향은 그대로'})`,
+        `그림만 ${dirText(op.dir)}으로 ${op.steps}칸 이동, ${op.withRot ? '그림도 같이 돌아감' : '그림 방향은 유지'}`,
       ];
     case 'swapSymbolRings':
-      return [`${RING_NAMES[op.a]} 층 그림 ↔ ${RING_NAMES[op.b]} 층 그림 교환`];
+      return [`${RING_NAMES[op.a]} 층과 ${RING_NAMES[op.b]} 층의 그림 맞바꿈`];
     case 'spinSymbols':
-      return [`각 그림을 제자리에서 ${dirText(op.dir)} ${op.angle}° 회전`];
+      return [`그림만 제자리에서 ${dirText(op.dir)} ${op.angle}° 회전`];
     case 'flipSymbols':
-      return ['각 그림만 좌우 반전 (칸 배치는 그대로)'];
+      return ['그림만 제자리에서 좌우 반전'];
   }
 }
 

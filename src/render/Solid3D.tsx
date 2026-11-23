@@ -105,7 +105,7 @@ function FaceMesh({
   const geom = useMemo(() => faceGeometry(solidId, face, label), [solidId, face, label]);
   useEffect(() => () => geom.dispose(), [geom]);
   const frac = symbolWorldSize(solidId) / (2 * faceCircumradius(solid, face));
-  const bg = highlight ? '#ffe066' : mono ? '#ffffff' : getSymbol(label.symbol).color;
+  const bg = highlight ? '#ffd43b' : mono ? '#fbfaf7' : getSymbol(label.symbol).color;
   const tex = faceTexture(label.symbol, bg, frac);
   const outline = useMemo(() => {
     const pts = f.vertices.map((v) => {
@@ -192,14 +192,14 @@ export function Solid3D({ solidId, labeling, q, mirrored, worldScaleX = 1, foldT
 }
 
 /** 축 표시 기즈모: X/Y/Z 화살표 (라벨은 AxisLegend 로 화면에 고정 표시) */
-export function AxisGizmo({ position = [-2.9, -1.7, 0.4] as [number, number, number] }) {
+export function AxisGizmo({ position = [-2.4, -1.75, 0.6] as [number, number, number] }) {
   const arrows = useMemo(
     () =>
       (
         [
-          [[1, 0, 0], '#e03131'],
-          [[0, 1, 0], '#2f9e44'],
-          [[0, 0, 1], '#1971c2'],
+          [[1, 0, 0], '#d6336c'],
+          [[0, 1, 0], '#2b8a3e'],
+          [[0, 0, 1], '#1c56c4'],
         ] as const
       ).map(([d, c]) => new THREE.ArrowHelper(new THREE.Vector3(...d), new THREE.Vector3(0, 0, 0), 0.9, c, 0.22, 0.13)),
     [],
@@ -217,9 +217,9 @@ export function AxisGizmo({ position = [-2.9, -1.7, 0.4] as [number, number, num
 export function AxisLegend() {
   return (
     <div className="axis-legend">
-      <span style={{ color: '#e03131' }}>━ 오른쪽(X)</span>
-      <span style={{ color: '#2f9e44' }}>━ 위(Y)</span>
-      <span style={{ color: '#1971c2' }}>━ 앞(Z, 나를 향함)</span>
+      <span style={{ color: '#d6336c' }}>━ 오른쪽 X</span>
+      <span style={{ color: '#2b8a3e' }}>━ 위 Y</span>
+      <span style={{ color: '#1c56c4' }}>━ 앞 Z (나를 향해)</span>
     </div>
   );
 }

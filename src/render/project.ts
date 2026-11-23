@@ -23,7 +23,12 @@ export interface FaceDraw {
   symbol: string;
   matrix: Mat;
   highlight?: boolean;
+  /** 0(어두움) ~ 1(밝음): 면 방향에 따른 음영 */
+  shade: number;
 }
+
+const LIGHT = normalize([-0.35, 0.85, 0.45]);
+const shadeOf = (n: Vec3) => 0.5 + 0.5 * dot(normalize(n), LIGHT);
 
 /** 기호(100×100 상자) → 화면 좌표 변환행렬 */
 export function symbolMatrix(center: P2, right: P2, up: P2, size: number): Mat {
@@ -61,6 +66,7 @@ export function drawsFromLook(look: Look, highlightSlots: number[] = []): FaceDr
       symbol: sl.symbol,
       matrix: symbolMatrix(projectPoint(f.center), projectVec(right), projectVec(up), size),
       highlight: highlightSlots.includes(f.id),
+      shade: shadeOf(f.normal),
     });
   }
   return out.sort((a, b) => a.depth - b.depth);
@@ -91,6 +97,7 @@ export function drawsFromTransform(
       symbol: lab[f.id].symbol,
       matrix: symbolMatrix(projectPoint(c), projectVec(vec(f.id, fr.right)), projectVec(vec(f.id, fr.up)), size),
       highlight: highlightFaces.includes(f.id),
+      shade: shadeOf(n),
     };
   });
   return out.sort((a, b) => a.depth - b.depth);

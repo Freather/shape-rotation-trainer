@@ -26,7 +26,7 @@ export type RollDir = 'forward' | 'backward' | 'right' | 'left';
  * - roll : 굴리기
  * - face / vertex / edge : 도형에 붙은 축. 기호로 면을 가리킴
  *   ("★ 면을 바라볼 때 시계방향 72°", "★·◆·● 면이 만나는 꼭짓점 기준 …", "★ 면과 ◆ 면 사이 모서리 기준 180°")
- * - mirror : 좌우 반전(거울) — 확장 규칙
+ * - mirror : 좌우 반전(거울). 확장 규칙
  */
 export type RotationOp =
   | { kind: 'view'; view: View; dir: Dir; angle: number }
@@ -85,21 +85,21 @@ export function describeOp(op: RotationOp): TextPart[] {
     case 'roll':
       return [
         {
-          forward: '앞으로 굴리기 (윗면이 앞으로)',
-          backward: '뒤로 굴리기 (윗면이 뒤로)',
-          right: '오른쪽으로 굴리기 (윗면이 오른쪽으로)',
-          left: '왼쪽으로 굴리기 (윗면이 왼쪽으로)',
+          forward: '앞으로 한 번 굴리기',
+          backward: '뒤로 한 번 굴리기',
+          right: '오른쪽으로 한 번 굴리기',
+          left: '왼쪽으로 한 번 굴리기',
         }[op.dir],
       ];
     case 'face':
-      return [{ symbol: op.symbol }, ` 면을 바라볼 때 ${dirText(op.dir)} ${op.angle}°`];
+      return [{ symbol: op.symbol }, ` 면을 정면에서 보고 ${dirText(op.dir)} ${op.angle}°`];
     case 'vertex': {
       const parts: TextPart[] = [];
       op.symbols.forEach((s, i) => {
         if (i > 0) parts.push('·');
         parts.push({ symbol: s });
       });
-      parts.push(` 면이 만나는 꼭짓점을 바라볼 때 ${dirText(op.dir)} ${op.angle}°`);
+      parts.push(` 면이 만나는 꼭짓점을 보고 ${dirText(op.dir)} ${op.angle}°`);
       return parts;
     }
     case 'edge':
@@ -107,12 +107,12 @@ export function describeOp(op: RotationOp): TextPart[] {
         { symbol: op.symbols[0] },
         ' 면과 ',
         { symbol: op.symbols[1] },
-        ` 면 사이 모서리를 바라볼 때 ${dirText(op.dir)} ${op.angle}°`,
+        ` 면 사이 모서리를 보고 ${op.angle}° 뒤집기`,
       ];
     case 'axis':
       return [`축 [${op.axis.map((n) => n.toFixed(2)).join(', ')}] 기준 ${op.angle}°`];
     case 'mirror':
-      return ['좌우 반전 (거울에 비친 모습)'];
+      return ['거울에 비친 모습으로 좌우 반전'];
   }
 }
 

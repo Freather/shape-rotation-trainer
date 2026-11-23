@@ -92,10 +92,10 @@ export function allowedRotations(shape: RadialShape): number[] {
 /** 대칭축(12시 기준 시계방향 각도): 0 = 세로축, 90 = 가로축, 45 = ↗ 대각선, 135 = ↘ 대각선 */
 export type MirrorAxis = 0 | 45 | 90 | 135;
 export const MIRROR_AXIS_NAMES: Record<MirrorAxis, string> = {
-  0: '세로축 기준 좌우 대칭',
-  90: '가로축 기준 상하 대칭',
-  45: '대각선(↗) 기준 대칭',
-  135: '대각선(↘) 기준 대칭',
+  0: '세로선을 기준으로 좌우 뒤집기',
+  90: '가로선을 기준으로 상하 뒤집기',
+  45: '↗ 대각선을 기준으로 뒤집기',
+  135: '↘ 대각선을 기준으로 뒤집기',
 };
 
 export function allowedMirrors(shape: RadialShape): MirrorAxis[] {

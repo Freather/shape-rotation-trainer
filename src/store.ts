@@ -19,7 +19,7 @@ export interface Settings {
 }
 
 export const DEFAULT_SETTINGS: Settings = {
-  mono: false,
+  mono: true,
   timePerQuestion: 40,
   timerMode: 'perQuestion',
   totalTime: 600,
@@ -41,7 +41,7 @@ export const useSettings = create<SettingsState>()(
       set: (p) => set(p),
       reset: () => set(DEFAULT_SETTINGS),
     }),
-    { name: 'srt-settings' },
+    { name: 'srt-settings-v2' },
   ),
 );
 

@@ -187,7 +187,7 @@ export function net2D(solidId: SolidId, edges: number[], root: number, lab?: Lab
   };
 }
 
-/** 볼록 다각형 두 개가 (넓이를 가지고) 겹치는지 — 분리축 정리 */
+/** 볼록 다각형 두 개가 (넓이를 가지고) 겹치는지. 분리축 정리 */
 export function polygonsOverlap(a: Pt[], b: Pt[], eps = 1e-6): boolean {
   for (const poly of [a, b]) {
     for (let i = 0; i < poly.length; i++) {

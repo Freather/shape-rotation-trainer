@@ -108,33 +108,39 @@ export function Exam() {
     return (
       <div className="panel">
         <h2>실전 모드</h2>
-        <p className="muted">
-          규칙 설명 2페이지 → 문제 {settings.examCount}개 (번호만 보고 적용) → 결과. 제한시간:{' '}
-          {settings.timerMode === 'perQuestion' ? `문항당 ${perQ}초` : `전체 ${settings.totalTime}초`} · 설정 탭에서 변경
-        </p>
-        <div className="form">
-          <label>
-            세트 종류
-            <select value={kind} onChange={(e) => setKind(e.target.value as 'solid' | 'radial')}>
-              <option value="solid">입체 회전 세트</option>
-              <option value="radial">평면 방사형 세트</option>
-            </select>
-          </label>
-          <label>
-            레벨
-            <select value={level} onChange={(e) => setLevel(Number(e.target.value))}>
-              {Array.from({ length: kind === 'radial' ? 4 : 5 }, (_, i) => i + 1).map((l) => (
-                <option key={l} value={l}>
-                  레벨 {l}
-                </option>
-              ))}
-            </select>
-          </label>
+        <p className="lead">시험처럼 규칙 2쪽을 먼저 보고, 문제를 이어서 풀어요. 채점은 마지막에 한 번에 해요.</p>
+        <div className="field-label">종류</div>
+        <div className="seg">
+          <button className={kind === 'solid' ? 'on' : ''} onClick={() => setKind('solid')}>
+            입체 회전
+          </button>
+          <button
+            className={kind === 'radial' ? 'on' : ''}
+            onClick={() => {
+              setKind('radial');
+              setLevel((l) => Math.min(l, 4));
+            }}
+          >
+            평면 도형
+          </button>
+        </div>
+        <div className="field-label">레벨</div>
+        <div className="seg">
+          {Array.from({ length: kind === 'radial' ? 4 : 5 }, (_, i) => i + 1).map((l) => (
+            <button key={l} className={level === l ? 'on' : ''} onClick={() => setLevel(l)}>
+              {l}
+            </button>
+          ))}
+        </div>
+        <div className="start-row">
+          <button className="primary big" onClick={start}>
+            시작하기
+          </button>
+          <span className="muted small">
+            문제 {settings.examCount}개, {settings.timerMode === 'perQuestion' ? `한 문제에 ${perQ}초` : `전체 ${settings.totalTime}초`}. 설정에서 바꿀 수 있어요.
+          </span>
         </div>
         <LevelGuide />
-        <button className="primary big" onClick={start}>
-          시험 시작
-        </button>
       </div>
     );
   }
@@ -151,7 +157,7 @@ export function Exam() {
           <span>
             문제 {idx + 1} / {sheet.questions.length}
           </span>
-          <span className={left <= 10 ? 'timer urgent' : 'timer'}>⏱ {Math.max(0, left)}s</span>
+          <span className={left <= 10 ? 'timer urgent' : 'timer'}>{Math.max(0, left)}초</span>
           {settings.allowRuleReviewInExam && <button onClick={() => setShowRules((s) => !s)}>규칙 보기</button>}
         </div>
         {showRules && <RuleSummary set={ruleSet} />}
@@ -165,7 +171,7 @@ export function Exam() {
         />
         <div className="next-row">
           <button className="primary big" onClick={goNext}>
-            {idx + 1 >= sheet.questions.length ? '제출' : '다음 문제 →'}
+            {idx + 1 >= sheet.questions.length ? '제출하기' : '다음 문제'}
           </button>
         </div>
       </div>
@@ -176,10 +182,13 @@ export function Exam() {
   const correct = sheet.questions.filter((q, i) => answers[i] === q.answer).length;
   return (
     <div className="panel">
-      <h2>
-        결과: {correct} / {sheet.questions.length} ({Math.round((correct / sheet.questions.length) * 100)}%)
-      </h2>
-      <p className="muted">총 소요 {Math.round(times.reduce((a, b) => a + b, 0) / 1000)}초 · 틀린 문항은 오답노트에 저장됨</p>
+      <h2>결과</h2>
+      <div className="score">
+        {correct} / {sheet.questions.length}
+      </div>
+      <p className="muted">
+        걸린 시간 {Math.round(times.reduce((a, b) => a + b, 0) / 1000)}초. 틀린 문제는 오답노트에 넣어 뒀어요.
+      </p>
       <table className="result-table">
         <thead>
           <tr>
@@ -187,7 +196,7 @@ export function Exam() {
             <th>결과</th>
             <th>내 답</th>
             <th>정답</th>
-            <th>실수 유형</th>
+            <th>함정</th>
             <th>시간</th>
             <th></th>
           </tr>
@@ -200,12 +209,12 @@ export function Exam() {
               <tr key={i} className={ok ? 'ok' : 'ng'}>
                 <td>{i + 1}</td>
                 <td>{ok ? 'O' : 'X'}</td>
-                <td>{a === null ? '—' : optionMark(a)}</td>
+                <td>{a === null ? '-' : optionMark(a)}</td>
                 <td>{optionMark(q.answer)}</td>
-                <td>{ok ? '' : a === null ? '미응답' : MISTAKE_NAMES[q.options[a].tag]}</td>
+                <td>{ok ? '' : a === null ? '안 풂' : MISTAKE_NAMES[q.options[a].tag]}</td>
                 <td>{(times[i] / 1000).toFixed(1)}s</td>
                 <td>
-                  <button onClick={() => setReview(review === i ? null : i)}>{review === i ? '닫기' : '풀이'}</button>
+                  <button className="link" onClick={() => setReview(review === i ? null : i)}>{review === i ? '닫기' : '풀이'}</button>
                 </td>
               </tr>
             );
@@ -220,7 +229,7 @@ export function Exam() {
       )}
       <div className="next-row">
         <button className="primary" onClick={() => setPhase('config')}>
-          새 시험
+          다시 보기
         </button>
       </div>
     </div>

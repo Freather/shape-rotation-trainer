@@ -42,17 +42,17 @@ import {
 export type QType = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11;
 
 export const QTYPE_NAMES: Record<QType, string> = {
-  1: '규칙 적용형 (입체)',
+  1: '규칙 적용 (입체)',
   2: '특정 면 맞히기',
   3: '같은 도형 판별',
   4: '전개도 → 입체',
   5: '입체 → 전개도',
   6: '마주보는 면',
   7: '전개도 + 회전',
-  8: '규칙 적용형 (평면 방사형)',
-  9: '평면 규칙 찾기',
-  10: '역추적 (회전 순서)',
-  11: '규칙 플래시카드',
+  8: '규칙 적용 (평면)',
+  9: '규칙 찾기 (평면)',
+  10: '회전 순서 찾기',
+  11: '규칙 외우기',
 };
 
 export type MistakeTag =
@@ -315,7 +315,7 @@ function genSolidRule(p: GenParams, set: SolidRuleSet): Question {
     seed: p.seed,
     setSeed: set.seed,
     solidId,
-    prompt: '다음 도형에 규칙을 순서대로 적용했을 때의 모습으로 알맞은 것은?',
+    prompt: '도형에 규칙을 순서대로 적용한 결과로 알맞은 것은?',
     stem: [solidFig(lookOf(initial, lab))],
     seq,
     options,
@@ -352,7 +352,7 @@ function genFaceQuestion(p: GenParams): Question {
   const initial = randomGroupState(solidId, rng);
   const ops = explicitOps(solidId, p.level, lab, rng, Math.max(1, Math.min(3, p.level)));
   const final = applyOps(initial, ops, lab);
-  const slotChoices: [number, string][] = solidId === 'cube' ? [[2, '앞면'], [0, '윗면'], [4, '오른쪽 면']] : [[0, '정면(가장 앞에 보이는 면)']];
+  const slotChoices: [number, string][] = solidId === 'cube' ? [[2, '앞면'], [0, '윗면'], [4, '오른쪽 면']] : [[0, '정면']];
   const [slot, slotName] = rng.pick(slotChoices);
   const ans = lookOf(final, lab).slots[slot];
   const key = (s: SlotLook) => `${s.symbol}.${s.rot}${s.flip ? 'm' : ''}`;
@@ -377,7 +377,7 @@ function genFaceQuestion(p: GenParams): Question {
     level: p.level,
     seed: p.seed,
     solidId,
-    prompt: `다음 순서로 회전한 뒤 ${slotName}에 오는 그림과 그 방향은? (보기는 그 면을 정면에서 본 모습${slot === 0 && solidId === 'cube' ? ', 화면 위쪽 = 뒤쪽' : ''})`,
+    prompt: `아래 순서로 돌린 뒤 ${slotName}에 오는 그림은? 보기는 그 면을 정면에서 본 모습이에요.${slot === 0 && solidId === 'cube' ? ' 윗면은 화면 위쪽이 뒤쪽이에요.' : ''}`,
     stem: [solidFig(lookOf(initial, lab))],
     stemOps: ops.map(describeOp),
     options,
@@ -464,7 +464,7 @@ function genSameDiff(p: GenParams): Question {
     level: p.level,
     seed: p.seed,
     solidId,
-    prompt: '두 그림이 회전만으로 겹쳐지는 같은 도형이면 O, 다른 도형이면 X를 고르시오.',
+    prompt: '두 그림이 돌려서 같아지는 같은 도형인가?',
     stem: [
       { kind: 'solid', look: lookA, caption: '(가)' },
       { kind: 'solid', look: lookB, caption: '(나)' },
@@ -472,8 +472,8 @@ function genSameDiff(p: GenParams): Question {
     options,
     answer: same ? 0 : 1,
     solution: same
-      ? { kind: 'solid', solidId, labeling: lab, initial: sA, ops: op ? [op] : [], labels: ['(가) → (나) 회전'] }
-      : { kind: 'text', parts: [['어떤 회전으로도 (가)의 보이는 면과 (나)의 보이는 면이 동시에 맞지 않습니다.'], ['같은 기호끼리의 위치 관계(이웃/방향/좌우)를 비교해 보세요.']] },
+      ? { kind: 'solid', solidId, labeling: lab, initial: sA, ops: op ? [op] : [], labels: ['(가)를 돌려 (나) 만들기'] }
+      : { kind: 'text', parts: [['어떻게 돌려도 (가)와 (나)의 보이는 면이 함께 맞지 않아요.'], ['같은 그림이 어느 면 옆에 있는지, 어느 쪽을 향하는지 비교해 보세요.']] },
   };
 }
 
@@ -537,7 +537,7 @@ function genNetToSolid(p: GenParams): Question {
     level: p.level,
     seed: p.seed,
     solidId,
-    prompt: '다음 전개도를 접었을 때 만들어질 수 있는 입체는?',
+    prompt: '전개도를 접어서 만들 수 있는 입체는?',
     stem: [netFig(solidId, edges, lab)],
     options,
     answer,
@@ -606,10 +606,10 @@ function genSolidToNet(p: GenParams): Question {
     level: p.level,
     seed: p.seed,
     solidId,
-    prompt: '두 그림은 같은 입체를 서로 다른 방향에서 본 것이다. 이 입체의 전개도로 알맞은 것은?',
+    prompt: '같은 입체를 두 방향에서 본 그림이다. 이 입체의 전개도는?',
     stem: [
       { kind: 'solid', look: v1, caption: '(가)' },
-      { kind: 'solid', look: v2, caption: '(나) 뒤쪽이 보이게 돌린 모습' },
+      { kind: 'solid', look: v2, caption: '(나) 뒤쪽에서 본 모습' },
     ],
     options,
     answer,
@@ -639,7 +639,7 @@ function genOpposite(p: GenParams): Question {
     level: p.level,
     seed: p.seed,
     solidId,
-    prompt: '전개도를 접었을 때, 굵게 표시한 면과 마주보는(정반대편) 면의 그림은?',
+    prompt: '전개도를 접었을 때 굵은 테두리 면의 맞은편에 오는 그림은?',
     stem: [netFig(solidId, edges, lab, { mark: f })],
     options,
     answer,
@@ -680,7 +680,7 @@ function genNetRotate(p: GenParams): Question {
     level: p.level,
     seed: p.seed,
     solidId,
-    prompt: '전개도를 ‘앞’ 표시 면이 정면을 향하고 똑바로 서도록 접은 뒤, 다음 순서로 회전했을 때의 모습은?',
+    prompt: "'앞' 면이 정면에 똑바로 오도록 접은 뒤 아래 순서로 돌린 모습은?",
     stem: [netFig(solidId, edges, lab, { rootLabel: true })],
     stemOps: ops.map(describeOp),
     options,
@@ -795,7 +795,7 @@ function genRadialRule(p: GenParams, set: RadialRuleSet): Question {
     level: p.level,
     seed: p.seed,
     setSeed: set.seed,
-    prompt: '다음 도형에 규칙을 순서대로 적용했을 때의 모습으로 알맞은 것은?',
+    prompt: '도형에 규칙을 순서대로 적용한 결과로 알맞은 것은?',
     stem: [{ kind: 'radial', shape, cells }],
     seq,
     options,
@@ -829,10 +829,10 @@ function genRadialFind(p: GenParams): Question {
     type: 9,
     level: p.level,
     seed: p.seed,
-    prompt: '왼쪽 도형이 오른쪽 도형으로 바뀌었다. 적용된 규칙은?',
+    prompt: '왼쪽 도형이 오른쪽처럼 바뀌었다. 적용한 규칙은?',
     stem: [
-      { kind: 'radial', shape, cells, caption: '변환 전' },
-      { kind: 'radial', shape, cells: applyRadialOp(shape, cells, correct), caption: '변환 후' },
+      { kind: 'radial', shape, cells, caption: '전' },
+      { kind: 'radial', shape, cells: applyRadialOp(shape, cells, correct), caption: '후' },
     ],
     options,
     answer,
@@ -874,10 +874,10 @@ function genBacktrack(p: GenParams): Question {
     level: p.level,
     seed: p.seed,
     solidId,
-    prompt: '처음 모습(가)이 나중 모습(나)이 되려면 어떤 순서로 회전해야 하는가?',
+    prompt: '(가)를 (나)로 만드는 회전 순서는?',
     stem: [
-      { kind: 'solid', look: lookOf(initial, lab), caption: '(가) 처음' },
-      { kind: 'solid', look: final, caption: '(나) 나중' },
+      { kind: 'solid', look: lookOf(initial, lab), caption: '(가)' },
+      { kind: 'solid', look: final, caption: '(나)' },
     ],
     options,
     answer,
@@ -913,7 +913,7 @@ function genFlash(p: GenParams, set: RuleSet): Question {
     level: p.level,
     seed: p.seed,
     setSeed: set.seed,
-    prompt: `규칙 [${rule.id}]의 내용은?`,
+    prompt: `규칙 [${rule.id}]은 무엇이었나요?`,
     stem: [],
     options,
     answer,

@@ -30,14 +30,13 @@ export function RuleCard({ set, index }: { set: RuleSet; index: number }) {
         {animate ? (
           <div onClick={(e) => e.stopPropagation()}>
             <SolidSolution sol={{ kind: 'solid', solidId: set.solidId, labeling: lab, initial: s0, ops: [op], labels: [rule.label] }} size={190} />
-            <button onClick={() => setAnimate(false)}>그림으로 돌아가기</button>
+            <button className="link" onClick={() => setAnimate(false)}>닫기</button>
           </div>
         ) : (
           <div className="before-after">
             <SolidSvg look={lookOf(s0, lab)} size={160} />
             <span className="arrow">→</span>
             <SolidSvg look={lookOf(s1, lab)} size={160} />
-            <span className="muted small">탭하면 회전 애니메이션</span>
           </div>
         )}
       </div>
@@ -56,14 +55,13 @@ export function RuleCard({ set, index }: { set: RuleSet; index: number }) {
       {animate ? (
         <div onClick={(e) => e.stopPropagation()}>
           <RadialSolution sol={{ kind: 'radial', shape: set.shape, cells: set.exampleCells, ops: [op], labels: [rule.label] }} size={190} />
-          <button onClick={() => setAnimate(false)}>그림으로 돌아가기</button>
+          <button className="link" onClick={() => setAnimate(false)}>닫기</button>
         </div>
       ) : (
         <div className="before-after">
           <RadialSvg shape={set.shape} cells={set.exampleCells} size={160} />
           <span className="arrow">→</span>
           <RadialSvg shape={set.shape} cells={c1} size={160} />
-          <span className="muted small">탭하면 애니메이션</span>
         </div>
       )}
     </div>
@@ -87,10 +85,11 @@ export function RulePages({ set, onStart, timer = 0, startLabel = '시작' }: { 
   return (
     <div className="rule-pages">
       <div className="paper-head">
-        <h2>규칙 설명 — {title}</h2>
-        {timer > 0 && <span className="timer">남은 시간 {left}s</span>}
+        <h2>규칙</h2>
+        <span className="muted">{title} · {set.rules.length}개</span>
+        {timer > 0 && <span className="timer">{left}초</span>}
       </div>
-      <p className="muted">아래 규칙을 익힌 뒤, 문제에서는 규칙 번호만 보고 적용합니다.</p>
+      <p className="lead">규칙을 외운 다음 시작하세요. 문제에는 번호만 나와요. 카드를 누르면 움직이는 모습을 볼 수 있어요.</p>
       <div className="rule-list">
         {pages[page].map((i) => (
           <RuleCard key={`${set.seed}-${i}`} set={set} index={i} />

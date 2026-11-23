@@ -19,7 +19,7 @@ function Controls({ pl, total, labels, describe }: { pl: ReturnType<typeof usePl
       <div className="player-buttons">
         <button onClick={pl.reset} title="처음">⏮</button>
         <button onClick={pl.prev} title="이전 단계">◀</button>
-        {pl.playing ? <button onClick={pl.pause}>⏸ 일시정지</button> : <button className="primary" onClick={pl.play}>▶ 재생</button>}
+        {pl.playing ? <button onClick={pl.pause}>멈춤</button> : <button className="primary" onClick={pl.play}>재생</button>}
         <button onClick={pl.next} title="다음 단계">▶|</button>
         <button onClick={pl.jumpEnd} title="끝">⏭</button>
       </div>
@@ -27,12 +27,12 @@ function Controls({ pl, total, labels, describe }: { pl: ReturnType<typeof usePl
         {labels.map((l, i) => (
           <li key={i} className={i < pl.done ? 'done' : i === pl.done && pl.playing ? 'now' : ''}>
             <b>{l}</b> <Parts parts={describe(i)} />
-            {pl.justFinished === i + 1 && <span className="applied"> — {l} 적용 완료</span>}
+            {pl.justFinished === i + 1 && <span className="applied">완료</span>}
           </li>
         ))}
       </ol>
-      <div className="muted">
-        {pl.done}/{total} 단계
+      <div className="muted small">
+        {pl.done} / {total}
       </div>
     </div>
   );
@@ -64,7 +64,7 @@ export function SolidSolution({ sol, size = 260 }: { sol: Extract<Solution, { ki
   return (
     <div className="solution">
       <FaceDrawsSvg draws={draws} size={size} />
-      {sol.focusFace !== undefined && <div className="muted small">노란 면: 마지막에 정면 쪽으로 오는 면 — 이 면을 따라가 보세요</div>}
+      {sol.focusFace !== undefined && <div className="muted small">노란 면이 마지막에 앞으로 와요. 이 면을 눈으로 따라가 보세요.</div>}
       <Controls pl={pl} total={sol.ops.length} labels={sol.labels} describe={(i) => describeOp(sol.ops[i])} />
     </div>
   );
@@ -83,7 +83,7 @@ export function FoldSolution({ sol, size = 260 }: { sol: Extract<Solution, { kin
   }, [sol.finalQ]);
   // 단계: 0 = 접기, 1 = (보기 방향으로 돌리기), 이후 회전 명령들
   const rotOps: RotationOp[] = [...(toFinal ? [toFinal] : []), ...sol.ops];
-  const labels = ['접기', ...(toFinal ? ['보기와 같은 방향으로 돌리기'] : []), ...sol.labels];
+  const labels = ['접기', ...(toFinal ? ['방향 맞추기'] : []), ...sol.labels];
   const pl = usePlayer(1 + rotOps.length, { stepMs: 1400 });
   const start: SolidState = { solidId: sol.solidId, q: QUAT_IDENTITY, mirrored: false };
   const hist = useMemo(() => stateHistory(start, rotOps, sol.labeling), [sol, toFinal]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -111,11 +111,11 @@ export function FoldSolution({ sol, size = 260 }: { sol: Extract<Solution, { kin
   }
   const draws = drawsFromTransform(sol.solidId, sol.labeling, point, vec, sol.highlight ?? []);
   const describe = (i: number): TextPart[] =>
-    i === 0 ? ['전개도를 한 장씩 접습니다 (회색 = 면의 안쪽)'] : rotOps[i - 1].kind === 'axis' ? ['보기 그림과 같은 방향이 되도록 돌립니다'] : describeOp(rotOps[i - 1]);
+    i === 0 ? ['한 장씩 접어요. 회색은 면의 안쪽이에요.'] : rotOps[i - 1].kind === 'axis' ? ['정답 그림과 같은 방향으로 돌려요.'] : describeOp(rotOps[i - 1]);
   return (
     <div className="solution">
       <FaceDrawsSvg draws={draws} size={size} />
-      {sol.highlight && <div className="muted small">노란 면 두 개가 서로 마주보는 면입니다</div>}
+      {sol.highlight && <div className="muted small">노란 두 면이 서로 맞은편이에요.</div>}
       <Controls pl={pl} total={1 + rotOps.length} labels={labels} describe={describe} />
     </div>
   );
