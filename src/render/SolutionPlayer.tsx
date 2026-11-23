@@ -102,7 +102,11 @@ export function FoldSolution({ sol, size = 260 }: { sol: Extract<Solution, { kin
       const w = rotateVec(oq, sub(applyT(T[f], v), center));
       return [w[0] * k, w[1] * k, w[2] * k];
     };
-    vec = (f, v) => rotateVec(oq, rotateT(T[f], v));
+    // 그림 크기도 면과 같은 비율로 줄인다 (안 그러면 펼친 전개도에서 그림이 면 밖으로 튀어나옴)
+    vec = (f, v) => {
+      const w = rotateVec(oq, rotateT(T[f], v));
+      return [w[0] * k, w[1] * k, w[2] * k];
+    };
   } else {
     const i = pl.done - 1;
     const s = hist[i];
