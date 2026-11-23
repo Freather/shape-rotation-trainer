@@ -1,0 +1,243 @@
+// 번호 규칙 시스템: 규칙 = 번호 + 연산. 세트는 매번 랜덤 생성 (같은 번호가 매번 다른 연산).
+// 입체 세트와 평면 방사형 세트를 같은 형식으로 다룬다.
+
+import { USABLE_SYMBOLS } from '../symbols/library';
+import { makeRng, type Rng } from './rng';
+import { inverseOp, symmetryGroup, type Dir, type RotationOp, type View } from './rotation';
+import { getSolid, type SolidId } from './solids';
+import { applyOp, initialState, signature, type Labeling } from './state';
+import { RADIAL_LEVELS, pickShape, radialOpCandidates, randomCells } from './radial/generate';
+import { radialSignature, type Cells, type Family, type RadialShape } from './radial/model';
+import { applyRadialOp, type RadialOp } from './radial/ops';
+
+export interface Rule<Op> {
+  id: number;
+  label: string;
+  op: Op;
+}
+
+export interface SolidRuleSet {
+  kind: 'solid';
+  seed: number;
+  level: number;
+  solidId: SolidId;
+  rules: Rule<RotationOp>[];
+  /** 규칙이 기호로 면을 가리키면 세트 전체에서 라벨 고정 */
+  fixedLabeling: Labeling | null;
+  /** 규칙 설명 페이지 예시용 라벨 */
+  exampleLabeling: Labeling;
+}
+
+export interface RadialRuleSet {
+  kind: 'radial';
+  seed: number;
+  level: number;
+  shape: RadialShape;
+  rules: Rule<RadialOp>[];
+  exampleCells: Cells;
+}
+
+export type RuleSet = SolidRuleSet | RadialRuleSet;
+
+// ---------------- 입체 레벨 ----------------
+
+export interface SolidLevelConfig {
+  solids: SolidId[];
+  steps: [number, number];
+  ruleCount: number;
+  confusing: number;
+  /** 정육면체: 90°만 / 180° 포함 / 굴리기 포함 */
+  cubeAngles: number[];
+  rolls: boolean;
+  timeScale: number;
+}
+
+export const SOLID_LEVELS: Record<number, SolidLevelConfig> = {
+  1: { solids: ['cube'], steps: [1, 1], ruleCount: 3, confusing: 0, cubeAngles: [90], rolls: false, timeScale: 1 },
+  2: { solids: ['cube'], steps: [2, 3], ruleCount: 4, confusing: 0.3, cubeAngles: [90, 180], rolls: true, timeScale: 1 },
+  3: { solids: ['octa'], steps: [2, 3], ruleCount: 4, confusing: 0.4, cubeAngles: [90, 180], rolls: true, timeScale: 1 },
+  4: { solids: ['dodeca'], steps: [2, 3], ruleCount: 4, confusing: 0.4, cubeAngles: [90, 180], rolls: true, timeScale: 1 },
+  5: { solids: ['cube', 'octa', 'dodeca'], steps: [3, 5], ruleCount: 5, confusing: 0.6, cubeAngles: [90, 180], rolls: true, timeScale: 0.75 },
+};
+
+export function randomLabeling(solidId: SolidId, rng: Rng): Labeling {
+  const solid = getSolid(solidId);
+  const syms = rng.shuffle(USABLE_SYMBOLS).slice(0, solid.faces.length);
+  return syms.map((s) => ({ symbol: s.id, rot: rng.int(solid.sides), flip: false }));
+}
+
+export const opUsesSymbols = (op: RotationOp): boolean => op.kind === 'face' || op.kind === 'vertex' || op.kind === 'edge';
+
+/** 다면체별로 대칭이 성립하는 회전 명령 후보 (4-4 표) */
+export function solidOpCandidates(solidId: SolidId, lab: Labeling, cfg: Pick<SolidLevelConfig, 'cubeAngles' | 'rolls'>, allowMirror = false): RotationOp[] {
+  const solid = getSolid(solidId);
+  const dirs: Dir[] = ['cw', 'ccw'];
+  const views: View[] = ['front', 'top', 'right'];
+  const out: RotationOp[] = [];
+  const sym = (f: number) => lab[f].symbol;
+  const pickVertexes = () => solid.vertexFaces.map((fs) => fs.map(sym));
+  switch (solidId) {
+    case 'cube':
+      for (const view of views) for (const dir of dirs) for (const angle of cfg.cubeAngles) if (!(angle === 180 && dir === 'ccw')) out.push({ kind: 'view', view, dir, angle });
+      if (cfg.rolls) for (const dir of ['forward', 'backward', 'right', 'left'] as const) out.push({ kind: 'roll', dir });
+      break;
+    case 'octa':
+      for (const view of views) for (const dir of dirs) for (const angle of [90, 180]) if (!(angle === 180 && dir === 'ccw')) out.push({ kind: 'view', view, dir, angle });
+      for (const f of solid.faces) for (const dir of dirs) out.push({ kind: 'face', symbol: sym(f.id), dir, angle: 120 });
+      for (const e of solid.edges) out.push({ kind: 'edge', symbols: [sym(e.faces[0]), sym(e.faces[1])], dir: 'cw', angle: 180 });
+      break;
+    case 'dodeca':
+      for (const dir of dirs) for (const angle of [72, 144]) out.push({ kind: 'view', view: 'front', dir, angle });
+      for (const f of solid.faces) for (const dir of dirs) for (const angle of [72, 144]) out.push({ kind: 'face', symbol: sym(f.id), dir, angle });
+      for (const vs of pickVertexes()) for (const dir of dirs) out.push({ kind: 'vertex', symbols: vs, dir, angle: 120 });
+      for (const e of solid.edges) out.push({ kind: 'edge', symbols: [sym(e.faces[0]), sym(e.faces[1])], dir: 'cw', angle: 180 });
+      break;
+    case 'tetra':
+      for (const f of solid.faces) for (const dir of dirs) out.push({ kind: 'face', symbol: sym(f.id), dir, angle: 120 });
+      for (const vs of pickVertexes()) for (const dir of dirs) out.push({ kind: 'vertex', symbols: vs, dir, angle: 120 });
+      for (const e of solid.edges) out.push({ kind: 'edge', symbols: [sym(e.faces[0]), sym(e.faces[1])], dir: 'cw', angle: 180 });
+      break;
+    case 'icosa':
+      for (const vs of pickVertexes()) for (const dir of dirs) for (const angle of [72, 144]) out.push({ kind: 'vertex', symbols: vs, dir, angle });
+      for (const f of solid.faces) for (const dir of dirs) out.push({ kind: 'face', symbol: sym(f.id), dir, angle: 120 });
+      for (const e of solid.edges) out.push({ kind: 'edge', symbols: [sym(e.faces[0]), sym(e.faces[1])], dir: 'cw', angle: 180 });
+      break;
+  }
+  if (allowMirror) out.push({ kind: 'mirror' });
+  return out;
+}
+
+/** 연산 효과 키 (같은 효과면 같은 값) */
+const solidEffect = (solidId: SolidId, op: RotationOp, lab: Labeling) => signature(applyOp(initialState(solidId), op, lab, ));
+
+/** 헷갈리는 짝: 방향 반대 / 다른 시점 같은 각도 / 같은 축 다른 각도 */
+function confusingVariants(op: RotationOp, all: RotationOp[]): RotationOp[] {
+  const out: RotationOp[] = [];
+  if (op.kind !== 'mirror' && op.kind !== 'axis') out.push(inverseOp(op));
+  if (op.kind === 'view') {
+    for (const v of ['front', 'top', 'right'] as View[]) if (v !== op.view) out.push({ ...op, view: v });
+  }
+  for (const c of all) {
+    if (c.kind === op.kind && JSON.stringify(c) !== JSON.stringify(op)) {
+      if ((c.kind === 'face' && op.kind === 'face' && c.symbol === op.symbol) || (c.kind === 'view' && op.kind === 'view' && c.view === op.view))
+        out.push(c);
+    }
+  }
+  // 대칭이 성립하는 후보 목록에 있는 것만 (예: 정십이면체는 '위에서 볼 때' 회전 불가)
+  return out.filter((c) => all.some((a) => JSON.stringify(a) === JSON.stringify(c)));
+}
+
+export interface SolidSetOptions {
+  solidId?: SolidId;
+  allowMirror?: boolean;
+}
+
+export function generateSolidRuleSet(level: number, seed: number, opts: SolidSetOptions = {}): SolidRuleSet {
+  const rng = makeRng(seed);
+  const cfg = SOLID_LEVELS[level];
+  const solidId = opts.solidId ?? rng.pick(cfg.solids);
+  const lab = randomLabeling(solidId, rng);
+  const all = solidOpCandidates(solidId, lab, cfg, opts.allowMirror);
+  // 정육면체는 시점 기반(라벨 불필요) 위주로, 그 외는 기호 기반 규칙을 섞는다
+  const ops: RotationOp[] = [];
+  const effects = new Set<string>([solidEffect(solidId, { kind: 'axis', axis: [0, 0, 1], angle: 0 }, lab)]);
+  const tryAdd = (op: RotationOp) => {
+    const e = solidEffect(solidId, op, lab);
+    if (effects.has(e)) return false;
+    effects.add(e);
+    ops.push(op);
+    return true;
+  };
+  let guard = 0;
+  while (ops.length < cfg.ruleCount && guard++ < 500) {
+    if (ops.length > 0 && rng.chance(cfg.confusing)) {
+      const base = rng.pick(ops);
+      const vars = rng.shuffle(confusingVariants(base, all));
+      if (vars.some((v) => tryAdd(v))) continue;
+    }
+    // 다양성: 이미 있는 종류와 다른 종류를 우선
+    const kindsUsed = new Set(ops.map((o) => o.kind + (o.kind === 'view' ? o.view : '')));
+    const fresh = all.filter((o) => !kindsUsed.has(o.kind + (o.kind === 'view' ? o.view : '')));
+    tryAdd(rng.pick(fresh.length && rng.chance(0.7) ? fresh : all));
+  }
+  if (opts.allowMirror && !ops.some((o) => o.kind === 'mirror') && rng.chance(0.6)) ops[ops.length - 1] = { kind: 'mirror' };
+  const rules = rng.shuffle(ops).map((op, i) => ({ id: i + 1, label: `[${i + 1}]`, op }));
+  const fixed = rules.some((r) => opUsesSymbols(r.op));
+  return { kind: 'solid', seed, level, solidId, rules, fixedLabeling: fixed ? lab : null, exampleLabeling: lab };
+}
+
+// ---------------- 평면 방사형 ----------------
+
+const radialEffect = (shape: RadialShape, samples: Cells[], op: RadialOp) =>
+  samples.map((c) => radialSignature(shape, applyRadialOp(shape, c, op))).join('#');
+
+function radialConfusing(op: RadialOp, all: RadialOp[]): RadialOp[] {
+  const same = (pred: (o: RadialOp) => boolean) => all.filter((o) => pred(o) && JSON.stringify(o) !== JSON.stringify(op));
+  switch (op.kind) {
+    case 'rotate':
+      return [...same((o) => o.kind === 'rotate'), ...same((o) => o.kind === 'moveSymbols')];
+    case 'rotateRing':
+      return same((o) => o.kind === 'rotateRing' && (o.ring === op.ring || o.dir === op.dir));
+    case 'moveSymbols':
+      return [...same((o) => o.kind === 'moveSymbols'), ...same((o) => o.kind === 'rotate')];
+    case 'mirror':
+      return [...same((o) => o.kind === 'mirror'), ...same((o) => o.kind === 'rotate' && o.angle === 180)];
+    case 'invertRing':
+    case 'invert':
+      return same((o) => o.kind === 'invertRing' || o.kind === 'invert');
+    case 'spinSymbols':
+    case 'flipSymbols':
+      return same((o) => o.kind === 'spinSymbols' || o.kind === 'flipSymbols');
+    default:
+      return [];
+  }
+}
+
+export function generateRadialRuleSet(level: number, seed: number, family?: Family): RadialRuleSet {
+  const rng = makeRng(seed);
+  const cfg = RADIAL_LEVELS[level];
+  const shape = pickShape(level, rng, family);
+  const all = radialOpCandidates(shape, cfg.kinds);
+  const samples = [1, 2, 3].map((i) => randomCells(shape, makeRng(seed * 7 + i), { symbolCount: 6 }));
+  const identity = samples.map((c) => radialSignature(shape, c)).join('#');
+  const effects = new Set<string>([identity]);
+  const ops: RadialOp[] = [];
+  const tryAdd = (op: RadialOp) => {
+    const e = radialEffect(shape, samples, op);
+    if (effects.has(e)) return false;
+    effects.add(e);
+    ops.push(op);
+    return true;
+  };
+  let guard = 0;
+  while (ops.length < Math.min(cfg.ruleCount, all.length) && guard++ < 500) {
+    if (ops.length > 0 && rng.chance(cfg.confusing)) {
+      const vars = rng.shuffle(radialConfusing(rng.pick(ops), all));
+      if (vars.some((v) => tryAdd(v))) continue;
+    }
+    const used = new Set(ops.map((o) => o.kind));
+    const fresh = all.filter((o) => !used.has(o.kind));
+    tryAdd(rng.pick(fresh.length && rng.chance(0.75) ? fresh : all));
+  }
+  const rules = rng.shuffle(ops).map((op, i) => ({ id: i + 1, label: `[${i + 1}]`, op }));
+  return { kind: 'radial', seed, level, shape, rules, exampleCells: randomCells(shape, rng, { symbolCount: cfg.symbolCount }) };
+}
+
+export const ruleById = <Op>(rules: Rule<Op>[], id: number): Rule<Op> => {
+  const r = rules.find((x) => x.id === id);
+  if (!r) throw new Error(`없는 규칙 번호 ${id}`);
+  return r;
+};
+
+/** 모든 규칙이 대칭 회전인지 확인 (테스트·디버그용) */
+export function solidRulesAreSymmetries(set: SolidRuleSet): boolean {
+  const lab = set.fixedLabeling ?? set.exampleLabeling;
+  return set.rules.every((r) => {
+    try {
+      applyOp(initialState(set.solidId), r.op, lab);
+      return symmetryGroup(set.solidId).length > 0;
+    } catch {
+      return false;
+    }
+  });
+}

@@ -1,12 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { quatNorm, quatSameRotation } from '../math';
-import { inverseOp, opToAxisAngle, symmetryGroup, type RotationOp } from '../rotation';
+import { inverseOp, symmetryGroup, type RotationOp } from '../rotation';
 import { getSolid } from '../solids';
 import {
   applyOp,
   applyOps,
   applyQuat,
   faceAtSlot,
+  resolveOp,
   initialState,
   mirror,
   signature,
@@ -53,9 +54,10 @@ describe('정육면체 데이터', () => {
 
 describe('회전 방향 규약', () => {
   it('"시계방향" = 해당 축 기준 −θ', () => {
-    expect(opToAxisAngle(frontCW90)).toEqual({ axis: [0, 0, 1], angle: -90 });
-    expect(opToAxisAngle({ kind: 'roll', dir: 'forward' })).toEqual({ axis: [1, 0, 0], angle: 90 });
-    expect(opToAxisAngle({ kind: 'roll', dir: 'right' })).toEqual({ axis: [0, 0, 1], angle: -90 });
+    const s0 = cube();
+    expect(resolveOp(s0, frontCW90)).toEqual({ kind: 'rotate', axis: [0, 0, 1], angle: -90 });
+    expect(resolveOp(s0, { kind: 'roll', dir: 'forward' })).toEqual({ kind: 'rotate', axis: [1, 0, 0], angle: 90 });
+    expect(resolveOp(s0, { kind: 'roll', dir: 'right' })).toEqual({ kind: 'rotate', axis: [0, 0, 1], angle: -90 });
   });
 });
 

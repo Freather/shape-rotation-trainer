@@ -1,129 +1,165 @@
 // 회전 연산: 시험식 표현 → 축/각도, 회전대칭군, 스냅
 
 import {
-  deg,
+  cross,
+  dot,
+  length,
+  normalize,
   quatCanonicalSign,
   quatDot,
-  quatFromAxisAngle,
-  quatMul,
+  quatFromMatrix,
   quatSameRotation,
+  scale,
+  sub,
   type Quat,
   type Vec3,
 } from './math';
-import type { SolidId } from './solids';
+import { getSolid, type SolidId } from './solids';
 
 export type View = 'front' | 'top' | 'right';
 export type Dir = 'cw' | 'ccw';
 export type RollDir = 'forward' | 'backward' | 'right' | 'left';
 
-/** 회전 명령 (시험 문구 단위) */
+/**
+ * 회전 명령 (시험 문구 단위)
+ * - view : 월드 고정 축 ("앞에서 볼 때 시계방향 90°")
+ * - roll : 굴리기
+ * - face / vertex / edge : 도형에 붙은 축. 기호로 면을 가리킴
+ *   ("★ 면을 바라볼 때 시계방향 72°", "★·◆·● 면이 만나는 꼭짓점 기준 …", "★ 면과 ◆ 면 사이 모서리 기준 180°")
+ * - mirror : 좌우 반전(거울) — 확장 규칙
+ */
 export type RotationOp =
   | { kind: 'view'; view: View; dir: Dir; angle: number }
   | { kind: 'roll'; dir: RollDir }
-  | { kind: 'axis'; axis: Vec3; angle: number }; // angle: 도, + = 축 끝에서 볼 때 반시계
+  | { kind: 'face'; symbol: string; dir: Dir; angle: number }
+  | { kind: 'vertex'; symbols: string[]; dir: Dir; angle: number }
+  | { kind: 'edge'; symbols: [string, string]; dir: Dir; angle: number }
+  | { kind: 'axis'; axis: Vec3; angle: number }
+  | { kind: 'mirror' };
 
-const VIEW_AXIS: Record<View, Vec3> = {
+export const VIEW_AXIS: Record<View, Vec3> = {
   front: [0, 0, 1],
   top: [0, 1, 0],
   right: [1, 0, 0],
 };
 
-/** 명령 → (축, 부호 있는 각도[도]). 애니메이션도 이 값 그대로 사용(지시 방향대로 돈다). */
-export function opToAxisAngle(op: RotationOp): { axis: Vec3; angle: number } {
-  switch (op.kind) {
-    case 'view':
-      // "~에서 볼 때 시계방향 θ" = 그 축 기준 −θ
-      return { axis: VIEW_AXIS[op.view], angle: op.dir === 'cw' ? -op.angle : op.angle };
-    case 'roll':
-      switch (op.dir) {
-        case 'forward': // 윗면이 앞으로
-          return { axis: [1, 0, 0], angle: 90 };
-        case 'backward':
-          return { axis: [1, 0, 0], angle: -90 };
-        case 'right': // 윗면이 오른쪽으로
-          return { axis: [0, 0, 1], angle: -90 };
-        case 'left':
-          return { axis: [0, 0, 1], angle: 90 };
-      }
-      break;
-    case 'axis':
-      return { axis: op.axis, angle: op.angle };
-  }
-}
+/** cw/ccw + 각도 → 부호 있는 각도 ("시계방향" = 그 축 기준 −θ) */
+export const signedAngle = (dir: Dir, angle: number): number => (dir === 'cw' ? -angle : angle);
 
-export const opToQuat = (op: RotationOp): Quat => {
-  const { axis, angle } = opToAxisAngle(op);
-  return quatFromAxisAngle(axis, deg(angle));
+export const ROLL_AXIS: Record<RollDir, { axis: Vec3; angle: number }> = {
+  forward: { axis: [1, 0, 0], angle: 90 }, // 윗면이 앞으로
+  backward: { axis: [1, 0, 0], angle: -90 },
+  right: { axis: [0, 0, 1], angle: -90 }, // 윗면이 오른쪽으로
+  left: { axis: [0, 0, 1], angle: 90 },
 };
 
 /** 역회전 명령 */
 export function inverseOp(op: RotationOp): RotationOp {
   switch (op.kind) {
     case 'view':
+    case 'face':
+    case 'vertex':
+    case 'edge':
       return { ...op, dir: op.dir === 'cw' ? 'ccw' : 'cw' };
     case 'roll': {
-      const inv: Record<RollDir, RollDir> = {
-        forward: 'backward',
-        backward: 'forward',
-        right: 'left',
-        left: 'right',
-      };
+      const inv: Record<RollDir, RollDir> = { forward: 'backward', backward: 'forward', right: 'left', left: 'right' };
       return { kind: 'roll', dir: inv[op.dir] };
     }
     case 'axis':
       return { ...op, angle: -op.angle };
+    case 'mirror':
+      return op;
   }
 }
 
-/** 시험 문구 */
-export function describeOp(op: RotationOp): string {
+/** 설명 문구 조각: 문자열 또는 기호 */
+export type TextPart = string | { symbol: string };
+
+export function describeOp(op: RotationOp): TextPart[] {
+  const dirText = (d: Dir) => (d === 'cw' ? '시계방향' : '반시계방향');
   switch (op.kind) {
     case 'view': {
       const v = { front: '앞', top: '위', right: '오른쪽' }[op.view];
-      return `${v}에서 볼 때 ${op.dir === 'cw' ? '시계' : '반시계'}방향 ${op.angle}°`;
+      return [`${v}에서 볼 때 ${dirText(op.dir)} ${op.angle}°`];
     }
     case 'roll':
-      return {
-        forward: '앞으로 굴리기',
-        backward: '뒤로 굴리기',
-        right: '오른쪽으로 굴리기',
-        left: '왼쪽으로 굴리기',
-      }[op.dir];
+      return [
+        {
+          forward: '앞으로 굴리기 (윗면이 앞으로)',
+          backward: '뒤로 굴리기 (윗면이 뒤로)',
+          right: '오른쪽으로 굴리기 (윗면이 오른쪽으로)',
+          left: '왼쪽으로 굴리기 (윗면이 왼쪽으로)',
+        }[op.dir],
+      ];
+    case 'face':
+      return [{ symbol: op.symbol }, ` 면을 바라볼 때 ${dirText(op.dir)} ${op.angle}°`];
+    case 'vertex': {
+      const parts: TextPart[] = [];
+      op.symbols.forEach((s, i) => {
+        if (i > 0) parts.push('·');
+        parts.push({ symbol: s });
+      });
+      parts.push(` 면이 만나는 꼭짓점을 바라볼 때 ${dirText(op.dir)} ${op.angle}°`);
+      return parts;
+    }
+    case 'edge':
+      return [
+        { symbol: op.symbols[0] },
+        ' 면과 ',
+        { symbol: op.symbols[1] },
+        ` 면 사이 모서리를 바라볼 때 ${dirText(op.dir)} ${op.angle}°`,
+      ];
     case 'axis':
-      return `축 [${op.axis.map((n) => n.toFixed(2)).join(', ')}] 기준 ${op.angle}°`;
+      return [`축 [${op.axis.map((n) => n.toFixed(2)).join(', ')}] 기준 ${op.angle}°`];
+    case 'mirror':
+      return ['좌우 반전 (거울에 비친 모습)'];
   }
 }
+
+export const describeOpText = (op: RotationOp, name: (symbol: string) => string = (s) => s): string =>
+  describeOp(op)
+    .map((p) => (typeof p === 'string' ? p : `‘${name(p.symbol)}’`))
+    .join('');
 
 // ---------------- 회전대칭군 ----------------
 
-/** 생성원들로부터 군을 닫힘(closure)으로 만든다. */
-export function generateGroup(generators: Quat[]): Quat[] {
-  const group: Quat[] = [[1, 0, 0, 0]];
-  const has = (q: Quat) => group.some((g) => quatSameRotation(g, q, 1e-6));
-  for (let i = 0; i < group.length; i++) {
-    for (const g of generators) {
-      const p = quatCanonicalSign(quatMul(g, group[i]));
-      if (!has(p)) group.push(p);
-    }
-    if (group.length > 200) throw new Error('군이 너무 큼: 생성원 확인 필요');
-  }
-  // 계산 오차를 줄이기 위해 원소를 정확한 값으로 정리 (작은 값 → 0)
-  return group.map((q) => q.map((c) => (Math.abs(c) < 1e-12 ? 0 : c)) as unknown as Quat);
+/** 직교 기준틀: e1 = a 방향, e2 = b에서 a 성분을 뺀 방향 */
+function frame(a: Vec3, b: Vec3): [Vec3, Vec3, Vec3] {
+  const e1 = normalize(a);
+  const e2 = normalize(sub(b, scale(e1, dot(b, e1))));
+  return [e1, e2, cross(e1, e2)];
 }
 
-const GROUP_GENERATORS: Record<SolidId, Quat[]> = {
-  cube: [
-    quatFromAxisAngle([1, 0, 0], deg(90)),
-    quatFromAxisAngle([0, 1, 0], deg(90)),
-    quatFromAxisAngle([0, 0, 1], deg(90)),
-  ],
-};
+/**
+ * 다면체의 회전대칭군: 꼭짓점 집합을 자기 자신으로 보내는 회전 전부.
+ * 꼭짓점 하나와 이웃 꼭짓점 하나를 어디로 보내는지 정하면 회전이 하나로 정해진다.
+ */
+function computeGroup(id: SolidId): Quat[] {
+  const solid = getSolid(id);
+  const vs = solid.vertices;
+  const e = solid.edges[0];
+  const a = vs[e.a];
+  const b = vs[e.b];
+  const edgeLen = length(sub(a, b));
+  const F = frame(a, b);
+  const group: Quat[] = [];
+  for (let i = 0; i < vs.length; i++)
+    for (let j = 0; j < vs.length; j++) {
+      if (i === j || Math.abs(length(sub(vs[i], vs[j])) - edgeLen) > 1e-6) continue;
+      const G = frame(vs[i], vs[j]);
+      // M = Σ G_k F_kᵀ
+      const m = [0, 1, 2].map((r) => [0, 1, 2].map((c) => G[0][r] * F[0][c] + G[1][r] * F[1][c] + G[2][r] * F[2][c]));
+      const q = quatCanonicalSign(quatFromMatrix(m));
+      if (!group.some((g) => quatSameRotation(g, q, 1e-9))) group.push(q);
+    }
+  return group;
+}
 
 const groupCache = new Map<SolidId, Quat[]>();
 export function symmetryGroup(id: SolidId): Quat[] {
   let g = groupCache.get(id);
   if (!g) {
-    g = generateGroup(GROUP_GENERATORS[id]);
+    g = computeGroup(id);
     groupCache.set(id, g);
   }
   return g;
@@ -131,9 +167,10 @@ export function symmetryGroup(id: SolidId): Quat[] {
 
 /** 대칭군 원소 중 가장 가까운 것으로 스냅 (오차 누적 방지) */
 export function snapToGroup(id: SolidId, q: Quat): Quat {
-  let best = symmetryGroup(id)[0];
+  const group = symmetryGroup(id);
+  let best = group[0];
   let bestDot = -1;
-  for (const g of symmetryGroup(id)) {
+  for (const g of group) {
     const d = Math.abs(quatDot(g, q));
     if (d > bestDot) {
       bestDot = d;
