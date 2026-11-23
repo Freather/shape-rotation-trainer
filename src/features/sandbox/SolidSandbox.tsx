@@ -12,7 +12,9 @@ import { foldBounds, foldTransforms, hasPresets, netPresets, randomSpanningTree,
 import { makeRng, randomSeed } from '../../engine/rng';
 import { randomLabeling } from '../../engine/rules';
 import { useSettings } from '../../store';
-import { AxisGizmo, AxisLegend, NetCells3D, Solid3D, type EditCell } from '../../render/Solid3D';
+import { AxisGizmo, AxisLegend, AxisLine, NetCells3D, Solid3D, ThreeBridge, type EditCell } from '../../render/Solid3D';
+import * as THREE from 'three';
+import { VIEW_AXIS } from '../../engine/rotation';
 import { canDetach, cellsFromNet, foldCells, freeSlots, placeCell, rotateUp } from '../../engine/netEdit';
 import { symmetryGroup } from '../../engine/rotation';
 import { canonicalLabelSignature } from '../../engine/state';
@@ -39,6 +41,13 @@ export function SolidSandbox() {
   const [translucent, setTranslucent] = useState(false);
   const [selFace, setSelFace] = useState<number | null>(null);
   const [tab, setTab] = useState<'rotate' | 'unfold' | 'edit'>('rotate');
+  // 손으로 돌리기: 축을 고정하고 도형을 끌어서 돌림
+  const [handRotate, setHandRotate] = useState(true);
+  const [handAxis, setHandAxis] = useState<View | 'face'>('top');
+  const [dragRot, setDragRot] = useState<{ axis: Vec3; angle: number } | null>(null);
+  const three = useRef<{ camera: THREE.Camera; gl: THREE.WebGLRenderer; controls: unknown } | null>(null);
+  const suppressClick = useRef(false);
+  const [jumpToEnd, setJumpToEnd] = useState(false);
   // 펼치기
   const [foldT, setFoldT] = useState(0);
   const [mode, setMode] = useState<UnfoldMode>('all');
@@ -71,6 +80,8 @@ export function SolidSandbox() {
     setCustomTree(null);
     setMoveCells(null);
     setHeld(null);
+    setHandAxis(VIEW_ANGLES[id].views.includes('top') ? 'top' : 'front');
+    setDragRot(null);
     pl.reset();
   };
 
@@ -83,6 +94,8 @@ export function SolidSandbox() {
     if (r.kind === 'rotate') q = quatMul(quatFromAxisAngle(r.axis, deg(r.angle * easeInOut(pl.p))), cur.q);
     else worldScaleX = Math.cos(Math.PI * easeInOut(pl.p)) || 0.001;
   }
+
+  if (dragRot) q = quatMul(quatFromAxisAngle(dragRot.axis, dragRot.angle), q);
 
   // 전개도: 루트 = 지금 카메라를 향한 면
   const root = useMemo(() => {
@@ -141,6 +154,114 @@ export function SolidSandbox() {
   }, []);
 
   const push = (op: RotationOp) => setQueue((qq) => [...qq, op]);
+
+  // 손으로 돌린 회전을 기록에 넣고 바로 그 결과를 보여줌
+  useEffect(() => {
+    if (jumpToEnd) {
+      pl.jumpEnd();
+      setJumpToEnd(false);
+    }
+  }, [jumpToEnd, pl]);
+
+  const handAxes: (View | 'face')[] = [...VIEW_ANGLES[solidId].views, 'face'];
+  const handStep = (axisKind: View | 'face') => (axisKind === 'face' ? 360 / solid.sides : Math.min(...VIEW_ANGLES[solidId].angles));
+
+  const pressFace = (face: number, point: Vec3, clientX: number, clientY: number): boolean => {
+    suppressClick.current = false;
+    if (!handRotate || foldT > 0 || pl.playing || !three.current) return false;
+    const { camera, gl, controls } = three.current;
+    const axisFace = handAxis === 'face' ? (selFace ?? face) : null;
+    const axis: Vec3 = axisFace !== null ? transformVec(cur, solid.faces[axisFace].normal) : VIEW_AXIS[handAxis as View];
+    // 잡은 점이 축 둘레로 아주 조금 돌 때 화면에서 몇 픽셀 움직이는지 → 끈 거리를 각도로 바꿀 때 사용
+    const rect = gl.domElement.getBoundingClientRect();
+    const toScreen = (v: Vec3) => {
+      const w = new THREE.Vector3(v[0], v[1], v[2]).project(camera);
+      return [((w.x + 1) / 2) * rect.width, ((1 - w.y) / 2) * rect.height];
+    };
+    const eps = 0.02;
+    const pr = quatFromAxisAngle(axis, eps);
+    const moved = [0, 1, 2].map((i) => point[i]) as unknown as Vec3;
+    const a = toScreen(moved);
+    const rotated = (() => {
+      const v = new THREE.Vector3(point[0], point[1], point[2]).applyQuaternion(new THREE.Quaternion(pr[1], pr[2], pr[3], pr[0]));
+      return [v.x, v.y, v.z] as unknown as Vec3;
+    })();
+    const b = toScreen(rotated);
+    let d = [(b[0] - a[0]) / eps, (b[1] - a[1]) / eps];
+    let circular = false;
+    if (Math.hypot(d[0], d[1]) < 20) {
+      // 축 바로 위를 잡은 경우: 화면 중심을 도는 방향으로 계산
+      circular = true;
+      d = [0, 0];
+    }
+    const center = toScreen([0, 0, 0]);
+    const towardViewer = dot(axis, CAMERA_DIR) >= 0 ? 1 : -1;
+    const c = controls as { enabled: boolean } | null;
+    if (c) c.enabled = false;
+    const sx = clientX;
+    const sy = clientY;
+    let angle = 0;
+    const move = (e: PointerEvent) => {
+      const dx = e.clientX - sx;
+      const dy = e.clientY - sy;
+      if (Math.hypot(dx, dy) > 4) suppressClick.current = true;
+      if (circular) {
+        const p0 = Math.atan2(sy - rect.top - center[1], sx - rect.left - center[0]);
+        const p1 = Math.atan2(e.clientY - rect.top - center[1], e.clientX - rect.left - center[0]);
+        angle = -(p1 - p0) * towardViewer;
+      } else {
+        angle = (dx * d[0] + dy * d[1]) / (d[0] * d[0] + d[1] * d[1]);
+      }
+      setDragRot({ axis, angle });
+    };
+    const up = () => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      if (c) c.enabled = true;
+      const step = handStep(handAxis);
+      const n = Math.round(360 / step);
+      let k = Math.round((angle * 180) / Math.PI / step);
+      k = ((k % n) + n) % n;
+      if (k > n / 2) k -= n;
+      // 가장 가까운 정확한 각도로 부드럽게 맞춤
+      const from = angle;
+      const to = (k * step * Math.PI) / 180;
+      const t0 = performance.now();
+      const fromNorm = from - Math.round((from - to) / (2 * Math.PI)) * 2 * Math.PI;
+      let finished = false;
+      const finish = () => {
+        if (finished) return;
+        finished = true;
+        commit(k, step, axisFace);
+      };
+      const tick = (now: number) => {
+        if (finished) return;
+        const t = Math.min(1, (now - t0) / 160);
+        setDragRot({ axis, angle: fromNorm + (to - fromNorm) * easeInOut(t) });
+        if (t < 1) requestAnimationFrame(tick);
+        else finish();
+      };
+      requestAnimationFrame(tick);
+      // 화면이 가려져 애니메이션 프레임이 멈춰도 반드시 마무리
+      setTimeout(finish, 260);
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+    return true;
+  };
+
+  const commit = (k: number, step: number, axisFace: number | null) => {
+    setDragRot(null);
+    if (k === 0) return;
+    const angle = Math.abs(k) * step;
+    const dir: Dir = k > 0 ? 'ccw' : 'cw';
+    const op: RotationOp =
+      axisFace !== null
+        ? { kind: 'face', symbol: lab[axisFace].symbol, dir: angle === 180 ? 'cw' : dir, angle }
+        : { kind: 'view', view: handAxis as View, dir: angle === 180 ? 'cw' : dir, angle };
+    setQueue((qq) => [...qq.slice(0, pl.done), op]);
+    setJumpToEnd(true);
+  };
 
   const startMove = () => {
     if (foldAnim.current) cancelAnimationFrame(foldAnim.current);
@@ -257,17 +378,34 @@ export function SolidSandbox() {
               mono={mono}
               translucent={translucent}
               highlight={selFace !== null ? [selFace] : []}
+              onFacePress={pressFace}
               onFaceClick={(f) => {
+                if (suppressClick.current) {
+                  suppressClick.current = false;
+                  return;
+                }
                 setSelFace(f === selFace ? null : f);
                 if (f !== selFace) setTab('edit');
               }}
             />
             )}
             <AxisGizmo />
+            <ThreeBridge target={three} />
+            {handRotate && foldT === 0 && !moveCells && (handAxis !== 'face' || selFace !== null || dragRot) && (
+              <AxisLine axis={dragRot ? dragRot.axis : handAxis === 'face' ? transformVec(cur, solid.faces[selFace!].normal) : VIEW_AXIS[handAxis]} />
+            )}
             <OrbitControls ref={controls} makeDefault enablePan={false} minDistance={4} maxDistance={18} />
           </Canvas>
           <AxisLegend />
-          <div className="canvas-hint">{moveCells ? (held ? '끌어서 파란 자리 가까이 가져가면 붙어요' : '옮길 면을 꾹 눌러 끌어 보세요') : '끌면 보는 방향만 바뀌어요'}</div>
+          <div className="canvas-hint">
+            {moveCells
+              ? held
+                ? '끌어서 파란 자리 가까이 가져가면 붙어요'
+                : '옮길 면을 꾹 눌러 끌어 보세요'
+              : handRotate && foldT === 0
+                ? '도형을 끌면 주황 축으로 돌아요. 빈 곳을 끌면 보는 방향이 바뀌어요'
+                : '끌면 보는 방향만 바뀌어요'}
+          </div>
           {pl.justFinished !== null && <div className="toast">{pl.justFinished}번째 회전 끝</div>}
         </div>
         <div className="playbar">
@@ -346,6 +484,29 @@ export function SolidSandbox() {
 
         {tab === 'rotate' && (
           <div className="side-body">
+            <h3 style={{ marginTop: 0 }}>손으로 돌리기</h3>
+            <label className="check small">
+              <input type="checkbox" checked={handRotate} onChange={(e) => setHandRotate(e.target.checked)} /> 도형을 끌어서 돌리기
+            </label>
+            {handRotate && (
+              <>
+                <div className="field-label" style={{ marginTop: 8 }}>
+                  고정할 축
+                </div>
+                <div className="seg">
+                  {handAxes.map((a) => (
+                    <button key={a} className={handAxis === a ? 'on' : ''} onClick={() => setHandAxis(a)}>
+                      {a === 'face' ? '누른 면' : { front: '앞뒤 축', top: '위아래 축', right: '좌우 축' }[a]}
+                    </button>
+                  ))}
+                </div>
+                <p className="note">
+                  주황 점선이 고정된 축이에요. 도형을 끌면 그 축으로만 돌고, 손을 떼면 {handAxis === 'face' ? `${360 / solid.sides}°` : `${Math.min(...VIEW_ANGLES[solidId].angles)}°`} 단위로 딱 맞춰진 뒤 아래 기록에 쌓여요.
+                  {handAxis === 'face' && ' 미리 고른 면이 있으면 그 면, 없으면 누른 면이 축이 돼요.'}
+                </p>
+              </>
+            )}
+            <h3>버튼으로 돌리기</h3>
             <table className="rot-table">
               <thead>
                 <tr>

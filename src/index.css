@@ -138,6 +138,15 @@ label.check { flex-direction: row !important; align-items: center; gap: 8px; col
 .timer.urgent { color: var(--bad); }
 .inline-sym { margin: 0 2px; }
 
+/* 문제 옆 직접 돌려보기 */
+.practice-grid { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 16px; align-items: start; }
+.practice-grid .question, .practice-grid .next-row { max-width: none; }
+.scratch-panel { background: var(--paper); border: 1px solid var(--line); border-radius: var(--r); padding: 14px; position: sticky; top: 66px; }
+.scratch-panel h3 { margin: 0 0 8px; }
+.scratch-canvas { height: 280px; border: 1px solid var(--line); border-radius: var(--r); background: #fcfcfb; overflow: hidden; }
+.scratch-ops { max-height: 220px; overflow: auto; }
+.scratch .btn-row button { padding: 5px 9px; }
+
 /* 문제 */
 .toolbar { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin: 0 auto 12px; max-width: 880px; }
 .toolbar .spacer { flex: 1; }
@@ -197,7 +206,8 @@ label.check { flex-direction: row !important; align-items: center; gap: 8px; col
 .stat-nums span { font-size: 0.8rem; color: var(--muted); }
 
 @media (max-width: 860px) {
-  .sandbox { grid-template-columns: minmax(0, 1fr); }
+  .sandbox, .practice-grid { grid-template-columns: minmax(0, 1fr); }
+  .scratch-panel { position: static; }
   .seg button { padding: 7px 10px; }
   .stage { position: static; }
   .canvas-wrap { height: 46vh; min-height: 300px; }

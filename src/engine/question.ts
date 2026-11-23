@@ -118,7 +118,13 @@ export type Solution =
   | { kind: 'radial'; shape: RadialShape; cells: Cells; ops: RadialOp[]; labels: string[] }
   | { kind: 'text'; parts: TextPart[][] };
 
+/** 연습할 때 옆에 띄우는 "직접 돌려보기" 판의 시작 상태 */
+export type Scratch =
+  | { kind: 'solid'; solidId: SolidId; labeling: Labeling; initial: SolidState; net?: { edges: number[]; root: number } }
+  | { kind: 'radial'; shape: RadialShape; cells: Cells };
+
 export interface Question {
+  scratch?: Scratch;
   type: QType;
   level: number;
   seed: number;
@@ -310,6 +316,7 @@ function genSolidRule(p: GenParams, set: SolidRuleSet): Question {
     solidFig,
   );
   return {
+    scratch: { kind: 'solid', solidId, labeling: lab, initial },
     type: 1,
     level: p.level,
     seed: p.seed,
@@ -373,6 +380,7 @@ function genFaceQuestion(p: GenParams): Question {
     (s) => ({ kind: 'face', solidId, slot, look: s }),
   );
   return {
+    scratch: { kind: 'solid', solidId, labeling: lab, initial },
     type: 2,
     level: p.level,
     seed: p.seed,
@@ -460,6 +468,7 @@ function genSameDiff(p: GenParams): Question {
   );
   const op = quatToAxisOp(rel);
   return {
+    scratch: { kind: 'solid', solidId, labeling: lab, initial: sA },
     type: 3,
     level: p.level,
     seed: p.seed,
@@ -533,6 +542,7 @@ function genNetToSolid(p: GenParams): Question {
     (l) => isViewOf(l, solidId, lab),
   );
   return {
+    scratch: { kind: 'solid', solidId, labeling: lab, initial: { solidId, q: QUAT_IDENTITY, mirrored: false }, net: { edges, root: defaultRoot(solidId) } },
     type: 4,
     level: p.level,
     seed: p.seed,
@@ -602,6 +612,7 @@ function genSolidToNet(p: GenParams): Question {
     consistent,
   );
   return {
+    scratch: { kind: 'solid', solidId, labeling: lab, initial: s1 },
     type: 5,
     level: p.level,
     seed: p.seed,
@@ -635,6 +646,7 @@ function genOpposite(p: GenParams): Question {
     (x) => ({ kind: 'symbol', symbol: lab[x].symbol }),
   );
   return {
+    scratch: { kind: 'solid', solidId, labeling: lab, initial: { solidId, q: QUAT_IDENTITY, mirrored: false }, net: { edges, root: defaultRoot(solidId) } },
     type: 6,
     level: p.level,
     seed: p.seed,
@@ -676,6 +688,7 @@ function genNetRotate(p: GenParams): Question {
     solidFig,
   );
   return {
+    scratch: { kind: 'solid', solidId, labeling: lab, initial, net: { edges, root: defaultRoot(solidId) } },
     type: 7,
     level: p.level,
     seed: p.seed,
@@ -791,6 +804,7 @@ function genRadialRule(p: GenParams, set: RadialRuleSet): Question {
     (c) => ({ kind: 'radial', shape, cells: c }),
   );
   return {
+    scratch: { kind: 'radial', shape, cells },
     type: 8,
     level: p.level,
     seed: p.seed,
@@ -826,6 +840,7 @@ function genRadialFind(p: GenParams): Question {
     (op) => ({ kind: 'text', parts: describeRadialOp(op) }),
   );
   return {
+    scratch: { kind: 'radial', shape, cells },
     type: 9,
     level: p.level,
     seed: p.seed,
@@ -870,6 +885,7 @@ function genBacktrack(p: GenParams): Question {
     (ops) => resultOf(ops) === finalSig && JSON.stringify(ops) !== JSON.stringify(seq),
   );
   return {
+    scratch: { kind: 'solid', solidId, labeling: lab, initial },
     type: 10,
     level: p.level,
     seed: p.seed,

@@ -92,6 +92,7 @@ function FaceMesh({
   highlight,
   transform,
   onClick,
+  onPress,
 }: {
   solidId: SolidId;
   face: number;
@@ -101,6 +102,7 @@ function FaceMesh({
   highlight: boolean;
   transform?: RigidTransform;
   onClick?: (face: number) => void;
+  onPress?: (face: number, point: Vec3, clientX: number, clientY: number) => boolean;
 }) {
   const solid = getSolid(solidId);
   const f = solid.faces[face];
@@ -134,6 +136,13 @@ function FaceMesh({
               }
             : undefined
         }
+        onPointerDown={
+          onPress
+            ? (e) => {
+                if (onPress(face, [e.point.x, e.point.y, e.point.z], e.nativeEvent.clientX, e.nativeEvent.clientY)) e.stopPropagation();
+              }
+            : undefined
+        }
       >
         <meshLambertMaterial
           map={tex}
@@ -164,9 +173,11 @@ export interface Solid3DProps {
   translucent?: boolean;
   highlight?: number[];
   onFaceClick?: (face: number) => void;
+  /** 면을 누르는 순간 (true 를 돌려주면 그 누름을 가져감) */
+  onFacePress?: (face: number, point: Vec3, clientX: number, clientY: number) => boolean;
 }
 
-export function Solid3D({ solidId, labeling, q, mirrored, worldScaleX = 1, foldT, offset, fitScale = 1, mono = false, translucent = false, highlight = [], onFaceClick }: Solid3DProps) {
+export function Solid3D({ solidId, labeling, q, mirrored, worldScaleX = 1, foldT, offset, fitScale = 1, mono = false, translucent = false, highlight = [], onFaceClick, onFacePress }: Solid3DProps) {
   const solid = getSolid(solidId);
   return (
     <group scale={[worldScaleX * fitScale, fitScale, fitScale]}>
@@ -184,6 +195,7 @@ export function Solid3D({ solidId, labeling, q, mirrored, worldScaleX = 1, foldT
               highlight={highlight.includes(f.id)}
               transform={foldT ? foldT[f.id] : undefined}
               onClick={onFaceClick}
+              onPress={onFacePress}
             />
           ))}
           </group>
@@ -499,4 +511,34 @@ export function NetCells3D({
       </group>
     </group>
   );
+}
+
+/** 고정한 회전축을 보여주는 선 (월드 좌표) */
+export function AxisLine({ axis, color = '#e67700' }: { axis: Vec3; color?: string }) {
+  const line = useMemo(() => {
+    const a = new THREE.Vector3(axis[0], axis[1], axis[2]).normalize();
+    const g = new THREE.BufferGeometry().setFromPoints([a.clone().multiplyScalar(-2.9), a.clone().multiplyScalar(2.9)]);
+    const m = new THREE.LineDashedMaterial({ color, dashSize: 0.18, gapSize: 0.1, depthTest: false });
+    const l = new THREE.Line(g, m);
+    l.computeLineDistances();
+    l.renderOrder = 10;
+    return l;
+  }, [axis[0], axis[1], axis[2], color]); // eslint-disable-line react-hooks/exhaustive-deps
+  const tip = useMemo(() => new THREE.Vector3(axis[0], axis[1], axis[2]).normalize().multiplyScalar(2.9), [axis[0], axis[1], axis[2]]); // eslint-disable-line react-hooks/exhaustive-deps
+  return (
+    <group>
+      <primitive object={line} />
+      <mesh position={tip}>
+        <sphereGeometry args={[0.08, 16, 16]} />
+        <meshBasicMaterial color={color} depthTest={false} />
+      </mesh>
+    </group>
+  );
+}
+
+/** Canvas 밖에서 카메라·렌더러·조작기를 쓰기 위한 다리 */
+export function ThreeBridge({ target }: { target: { current: { camera: THREE.Camera; gl: THREE.WebGLRenderer; controls: unknown } | null } }) {
+  const { camera, gl, controls } = useThree();
+  target.current = { camera, gl, controls };
+  return null;
 }

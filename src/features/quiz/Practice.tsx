@@ -6,6 +6,7 @@ import { SOLID_IDS, SOLID_NAMES, type SolidId } from '../../engine/solids';
 import { buildRuleSet, useRecords, useSettings, type SetParams } from '../../store';
 import { QuestionView } from './QuestionView';
 import { RulePages, RuleSummary } from './RulePages';
+import { Scratchpad } from './Scratchpad';
 
 const TYPE_GROUPS: { title: string; items: [QType, string][] }[] = [
   {
@@ -53,6 +54,7 @@ export function Practice() {
   const [selected, setSelected] = useState<number | null>(null);
   const [revealed, setRevealed] = useState(false);
   const [showRules, setShowRules] = useState(false);
+  const [showScratch, setShowScratch] = useState(true);
   const [score, setScore] = useState({ ok: 0, total: 0 });
   const t0 = useRef(0);
   const allowMirror = useSettings((s) => s.allowMirrorRules);
@@ -206,26 +208,33 @@ export function Practice() {
         {ruleSet && (
           <button onClick={() => setShowRules((s) => !s)}>{showRules ? '규칙 닫기' : '규칙 보기'}</button>
         )}
+        {q.scratch && <button onClick={() => setShowScratch((s) => !s)}>{showScratch ? '돌려보기 닫기' : '직접 돌려보기'}</button>}
         
       </div>
       {showRules && ruleSet && <RuleSummary set={ruleSet} />}
-      <QuestionView key={`${q.seed}-${count}`} q={q} number={count} selected={selected} onSelect={answer} revealed={revealed} />
-      {revealed && (
-        <div className="next-row">
-          <button className="primary big" onClick={() => newQuestion(setParams)}>
-            다음 문제
-          </button>
-          {ruleSet && (
-            <button
-              onClick={() => {
-                start();
-              }}
-            >
-              규칙 새로 받기
-            </button>
+      <div className={showScratch && q.scratch ? 'practice-grid' : ''}>
+        <div style={{ minWidth: 0 }}>
+          <QuestionView key={`${q.seed}-${count}`} q={q} number={count} selected={selected} onSelect={answer} revealed={revealed} />
+          {revealed && (
+            <div className="next-row">
+              <button className="primary big" onClick={() => newQuestion(setParams)}>
+                다음 문제
+              </button>
+              {ruleSet && (
+                <button
+                  onClick={() => {
+                    start();
+                  }}
+                >
+                  규칙 새로 받기
+                </button>
+              )}
+            </div>
           )}
+
         </div>
-      )}
+        {showScratch && q.scratch && <Scratchpad q={q} ruleSet={ruleSet} />}
+      </div>
     </div>
   );
 }
