@@ -5,9 +5,11 @@ import { describeOp, type RotationOp } from '../../engine/rotation';
 import { applyOp, initialState, lookOf } from '../../engine/state';
 import { applyRadialOp, describeRadialOp, type RadialOp } from '../../engine/radial/ops';
 import { SolidSvg } from '../../render/SolidSvg';
-import { opMarks } from '../../render/AxisMarks';
+import { AxisMarks, VIEW_LABEL, opMarks } from '../../render/AxisMarks';
+import { BlocksSvg, blocksRadius } from '../../render/BlocksSvg';
+import { applyBlockOp, describeBlockOp, opMatrix, type BlockOp } from '../../engine/blocks';
 import { RadialSvg } from '../../render/RadialSvg';
-import { SolidSolution, RadialSolution } from '../../render/SolutionPlayer';
+import { SolidSolution, RadialSolution, BlocksSolution } from '../../render/SolutionPlayer';
 import { Parts, RuleBadge } from '../../ui/Parts';
 import { SOLID_NAMES } from '../../engine/solids';
 import { FAMILY_NAMES } from '../../engine/radial/model';
@@ -38,6 +40,40 @@ export function RuleCard({ set, index }: { set: RuleSet; index: number }) {
             <SolidSvg look={lookOf(s0, lab)} size={160} marks={opMarks(s0, op, lab)} />
             <span className="arrow">→</span>
             <SolidSvg look={lookOf(s1, lab)} size={160} />
+          </div>
+        )}
+      </div>
+    );
+  }
+  if (set.kind === 'block') {
+    const op = rule.op as BlockOp;
+    const b1 = applyBlockOp(set.example, op);
+    const r = blocksRadius(set.example);
+    const m = op.kind === 'mirror' ? [] : opMarks(initialState('cube'), op, []).map((x) => ({ ...x, label: op.kind === 'view' ? VIEW_LABEL[op.view] : undefined }));
+    const V = Math.max(1.9, r * 1.08) + 1;
+    return (
+      <div className="rule-card" onClick={() => setAnimate((a) => !a)}>
+        <div className="rule-head">
+          <RuleBadge id={rule.id} />
+          <span className="rule-desc">
+            <Parts parts={describeBlockOp(op)} />
+          </span>
+        </div>
+        {animate ? (
+          <div onClick={(e) => e.stopPropagation()}>
+            <BlocksSolution
+              sol={{ kind: 'blocks', initial: set.example, steps: [{ m: op.kind === 'mirror' ? 'mirror' : opMatrix(op), label: describeBlockOp(op), axisLabel: op.kind === 'view' ? VIEW_LABEL[op.view] : undefined }] }}
+              size={190}
+            />
+            <button className="link" onClick={() => setAnimate(false)}>닫기</button>
+          </div>
+        ) : (
+          <div className="before-after">
+            <BlocksSvg cells={set.example} size={160} view={V}>
+              <AxisMarks marks={m} radius={r + 0.2} />
+            </BlocksSvg>
+            <span className="arrow">→</span>
+            <BlocksSvg cells={b1} size={160} view={V} />
           </div>
         )}
       </div>
@@ -82,7 +118,7 @@ export function RulePages({ set, onStart, timer = 0, startLabel = '시작' }: { 
   useEffect(() => {
     if (timer && left <= 0) onStart();
   }, [left, timer, onStart]);
-  const title = set.kind === 'solid' ? SOLID_NAMES[set.solidId] : `${FAMILY_NAMES[set.shape.family]} (${set.shape.sectors.join('/')}칸)`;
+  const title = set.kind === 'solid' ? SOLID_NAMES[set.solidId] : set.kind === 'block' ? '쌓기나무' : `${FAMILY_NAMES[set.shape.family]} (${set.shape.sectors.join('/')}칸)`;
   return (
     <div className="rule-pages">
       <div className="paper-head">
@@ -122,7 +158,7 @@ export function RuleSummary({ set }: { set: RuleSet }) {
       {set.rules.map((r) => (
         <div key={r.id}>
           <RuleBadge id={r.id} />{' '}
-          <Parts parts={set.kind === 'solid' ? describeOp(r.op as RotationOp) : describeRadialOp(r.op as RadialOp)} />
+          <Parts parts={set.kind === 'solid' ? describeOp(r.op as RotationOp) : set.kind === 'block' ? describeBlockOp(r.op as BlockOp) : describeRadialOp(r.op as RadialOp)} />
         </div>
       ))}
     </div>

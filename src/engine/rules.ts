@@ -9,6 +9,7 @@ import { applyOp, initialState, signature, type Labeling } from './state';
 import { RADIAL_LEVELS, pickShape, radialOpCandidates, randomCells } from './radial/generate';
 import { radialSignature, type Cells, type Family, type RadialShape } from './radial/model';
 import { applyRadialOp, type RadialOp } from './radial/ops';
+import { allVisible, blockOpCandidates, isChiral, randomBlocks, sameEffect, IDENTITY, opMatrix, type BlockOp, type Blocks } from './blocks';
 
 export interface Rule<Op> {
   id: number;
@@ -37,7 +38,15 @@ export interface RadialRuleSet {
   exampleCells: Cells;
 }
 
-export type RuleSet = SolidRuleSet | RadialRuleSet;
+export interface BlockRuleSet {
+  kind: 'block';
+  seed: number;
+  level: number;
+  rules: Rule<BlockOp>[];
+  example: Blocks;
+}
+
+export type RuleSet = SolidRuleSet | RadialRuleSet | BlockRuleSet;
 
 // ---------------- 입체 레벨 ----------------
 
@@ -240,4 +249,61 @@ export function solidRulesAreSymmetries(set: SolidRuleSet): boolean {
       return false;
     }
   });
+}
+
+// ---------------- 쌓기나무 ----------------
+
+export interface BlockLevelConfig {
+  blocks: [number, number];
+  box: number;
+  steps: [number, number];
+  ruleCount: number;
+  views: ('front' | 'top' | 'right')[];
+  half: boolean;
+  rolls: boolean;
+  mirror: boolean;
+}
+
+export const BLOCK_LEVELS: Record<number, BlockLevelConfig> = {
+  1: { blocks: [4, 4], box: 3, steps: [1, 1], ruleCount: 3, views: ['top', 'front'], half: false, rolls: false, mirror: false },
+  2: { blocks: [4, 5], box: 3, steps: [2, 2], ruleCount: 4, views: ['top', 'front', 'right'], half: false, rolls: false, mirror: false },
+  3: { blocks: [5, 6], box: 3, steps: [2, 3], ruleCount: 4, views: ['top', 'front', 'right'], half: true, rolls: true, mirror: false },
+  4: { blocks: [5, 7], box: 3, steps: [3, 3], ruleCount: 5, views: ['top', 'front', 'right'], half: true, rolls: true, mirror: false },
+  5: { blocks: [6, 8], box: 4, steps: [3, 4], ruleCount: 5, views: ['top', 'front', 'right'], half: true, rolls: true, mirror: true },
+};
+
+/** 그림만으로 모양을 알 수 있고 돌리면 달라 보이는 쌓기나무 */
+export function pickBlocks(rng: Rng, level: number, needChiral = false): Blocks {
+  const cfg = BLOCK_LEVELS[Math.min(5, Math.max(1, level))];
+  for (let t = 0; t < 400; t++) {
+    const b = randomBlocks(rng, rng.range(cfg.blocks[0], cfg.blocks[1]), cfg.box);
+    if (b.length < cfg.blocks[0] || !allVisible(b)) continue;
+    if (needChiral && !isChiral(b)) continue;
+    return b;
+  }
+  return randomBlocks(rng, cfg.blocks[0], cfg.box);
+}
+
+export function generateBlockRuleSet(level: number, seed: number): BlockRuleSet {
+  const rng = makeRng(seed);
+  const cfg = BLOCK_LEVELS[Math.min(5, Math.max(1, level))];
+  const all = rng.shuffle(blockOpCandidates(cfg));
+  const ops: BlockOp[] = [];
+  const isId = (o: BlockOp) => JSON.stringify(opMatrix(o)) === JSON.stringify(IDENTITY);
+  // 거울은 레벨 5에서 꼭 하나
+  if (cfg.mirror) ops.push({ kind: 'mirror' });
+  // 같은 축의 반대 방향을 섞어 헷갈리게
+  for (const o of all) {
+    if (ops.length >= cfg.ruleCount) break;
+    if (isId(o) || ops.some((x) => sameEffect(x, o))) continue;
+    ops.push(o);
+  }
+  const shuffled = rng.shuffle(ops);
+  return {
+    kind: 'block',
+    seed,
+    level,
+    rules: shuffled.map((op, i) => ({ id: i + 1, label: String(i + 1), op })),
+    example: pickBlocks(rng, level, true),
+  };
 }

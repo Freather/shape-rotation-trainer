@@ -1,7 +1,7 @@
 // 풀이 보기: 초기 → 각 단계 애니메이션 (SVG, 렌더러 없이)
 import { useMemo, type ReactNode } from 'react';
 import { CAMERA_DIR, getSolid } from '../engine/solids';
-import { QUAT_IDENTITY, deg, quatFromAxisAngle, quatFromTo, quatSlerp, rotateVec, sub, type Quat, type Vec3 } from '../engine/math';
+import { QUAT_IDENTITY, deg, quatFromAxisAngle, quatFromMatrix, quatFromTo, quatSlerp, rotateVec, sub, type Quat, type Vec3 } from '../engine/math';
 import { describeOp, type RotationOp, type TextPart } from '../engine/rotation';
 import { resolveOp, stateHistory, transformVec, type Labeling, type SolidState } from '../engine/state';
 import { applyT, foldBounds, foldTransforms, rotateT } from '../engine/net';
@@ -12,7 +12,10 @@ import { FaceDrawsSvg } from './SolidSvg';
 import { RadialSvg } from './RadialSvg';
 import { easeInOut, usePlayer } from './usePlayer';
 import { Parts } from '../ui/Parts';
-import { AxisMarks, opMarks } from './AxisMarks';
+import { AxisMarks, opMarks, type AxisMark } from './AxisMarks';
+import { BlocksSvg, blocksRadius } from './BlocksSvg';
+import { mirrorBlocks, transform } from '../engine/blocks';
+import { FigureView } from '../ui/FigureView';
 
 function Controls({ pl, total, labels, describe }: { pl: ReturnType<typeof usePlayer>; total: number; labels: string[]; describe: (i: number) => TextPart[] }) {
   return (
@@ -142,6 +145,39 @@ export function RadialSolution({ sol, size = 260 }: { sol: Extract<Solution, { k
   );
 }
 
+/** 쌓기나무 풀이: 단계마다 돌리는 축과 방향을 보여주며 애니메이션 */
+export function BlocksSolution({ sol, size = 260 }: { sol: Extract<Solution, { kind: 'blocks' }>; size?: number }) {
+  const hist = useMemo(() => {
+    const h = [sol.initial];
+    for (const st of sol.steps) h.push(st.m === 'mirror' ? mirrorBlocks(h[h.length - 1]) : transform(h[h.length - 1], st.m));
+    return h;
+  }, [sol]);
+  const pl = usePlayer(sol.steps.length, { stepMs: 1200 });
+  const cells = hist[pl.done];
+  const step = pl.done < sol.steps.length ? sol.steps[pl.done] : null;
+  let q: Quat = QUAT_IDENTITY;
+  let sx = 1;
+  let marks: AxisMark[] = [];
+  if (step && step.m !== 'mirror') {
+    let full = quatFromMatrix(step.m);
+    if (full[0] < 0) full = [-full[0], -full[1], -full[2], -full[3]];
+    if (pl.p > 0) q = quatSlerp(QUAT_IDENTITY, full, easeInOut(pl.p));
+    const s = Math.sqrt(Math.max(0, 1 - full[0] * full[0]));
+    if (s > 1e-6) marks = [{ dir: [full[1] / s, full[2] / s, full[3] / s], angle: (2 * Math.acos(Math.min(1, full[0])) * 180) / Math.PI, label: step.axisLabel }];
+  } else if (step && pl.p > 0) sx = Math.cos(Math.PI * easeInOut(pl.p)) || 0.001;
+  const r = blocksRadius(sol.initial);
+  return (
+    <div className="solution">
+      <BlocksSvg cells={cells} colors={sol.colors} size={size} q={q} sx={sx} view={Math.max(1.9, r * 1.08) + 1}>
+        <AxisMarks marks={marks} radius={r + 0.2} />
+      </BlocksSvg>
+      {marks.length > 0 && <div className="muted small">빨간 선이 이번 단계에서 도는 축이고, 화살표가 도는 방향이에요.</div>}
+      {sol.note && <div className="muted small">{sol.note}</div>}
+      <Controls pl={pl} total={sol.steps.length} labels={sol.steps.map((_, i) => `${i + 1}단계`)} describe={(i) => sol.steps[i].label} />
+    </div>
+  );
+}
+
 export function SolutionView({ sol, size }: { sol: Solution; size?: number }): ReactNode {
   switch (sol.kind) {
     case 'solid':
@@ -150,6 +186,23 @@ export function SolutionView({ sol, size }: { sol: Solution; size?: number }): R
       return <FoldSolution sol={sol} size={size} />;
     case 'radial':
       return <RadialSolution sol={sol} size={size} />;
+    case 'blocks':
+      return <BlocksSolution sol={sol} size={size} />;
+    case 'figs':
+      return (
+        <div className="solution">
+          <div className="stem">
+            {sol.figs.map((f, i) => (
+              <FigureView key={i} fig={f} size={150} />
+            ))}
+          </div>
+          {sol.parts.map((p, i) => (
+            <p key={i}>
+              <Parts parts={p} />
+            </p>
+          ))}
+        </div>
+      );
     case 'text':
       return (
         <div className="solution">

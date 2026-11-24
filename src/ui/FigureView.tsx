@@ -7,7 +7,9 @@ import { Glyph } from '../render/Glyph';
 import { getSymbol } from '../symbols/library';
 import { useSettings } from '../store';
 import { Parts } from './Parts';
-import type { AxisMark } from '../render/AxisMarks';
+import { AxisMarks, VIEW_LABEL, type AxisMark } from '../render/AxisMarks';
+import { BlocksSvg, GridSvg, blocksRadius } from '../render/BlocksSvg';
+import { VIEW_AXIS } from '../engine/rotation';
 
 export function FigureView({ fig, size = 150, marks }: { fig: Figure; size?: number; marks?: AxisMark[] }) {
   const mono = useSettings((s) => s.mono);
@@ -62,6 +64,25 @@ export function FigureView({ fig, size = 150, marks }: { fig: Figure; size?: num
         <div className="fig-text">
           <Parts parts={fig.parts} />
         </div>
+      );
+    case 'blocks': {
+      const r = blocksRadius(fig.cells);
+      const vm = (fig.viewMarks ?? []).map((v) => ({ dir: VIEW_AXIS[v], label: VIEW_LABEL[v] }));
+      return (
+        <figure className="fig">
+          <BlocksSvg cells={fig.cells} colors={fig.colors} size={size} view={vm.length ? Math.max(1.9, r * 1.08) + 0.8 : undefined}>
+            {vm.length > 0 && <AxisMarks marks={vm} radius={r + 0.1} />}
+          </BlocksSvg>
+          {fig.caption && <figcaption>{fig.caption}</figcaption>}
+        </figure>
+      );
+    }
+    case 'grid':
+      return (
+        <figure className="fig">
+          <GridSvg grid={fig.grid} size={size * 0.85} />
+          {fig.caption && <figcaption>{fig.caption}</figcaption>}
+        </figure>
       );
     case 'ox':
       return <div className="fig-ox">{fig.value ? 'O 될 수 있다' : 'X 될 수 없다'}</div>;

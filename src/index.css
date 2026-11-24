@@ -259,3 +259,7 @@ input[type='time'] { border: 1px solid var(--line); border-radius: var(--r); pad
 .tips ul { margin: 0 0 10px; padding-left: 20px; }
 .tips ul:last-child { margin-bottom: 0; }
 .tips li { margin: 3px 0; }
+.tips-toggle { margin: 10px 0 0; }
+.tips-toggle > summary { cursor: pointer; font-size: 13px; color: #555; display: inline-block; padding: 4px 10px; border: 1px solid #d8d5ce; border-radius: 999px; background: #fff; list-style: none; }
+.tips-toggle > summary::-webkit-details-marker { display: none; }
+.tips-toggle[open] > summary { background: #16181b; color: #fff; border-color: #16181b; }

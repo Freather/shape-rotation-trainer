@@ -2,6 +2,8 @@
 // 같은 seed → 같은 문제 (오답노트에서 똑같이 다시 풀기)
 
 import { getSymbol } from '../symbols/library';
+import { blockOpCandidates, blocksKey, describeBlockOp, gridKey, type BlockOp, type Blocks, type Mat3, type ViewDir } from './blocks';
+import { generateBlockQuestion } from './blockQuestions';
 import { QUAT_IDENTITY, dot, quatMul, type Quat } from './math';
 import { defaultRoot, pickNet } from './net';
 import { makeRng, type Rng } from './rng';
@@ -39,7 +41,9 @@ import {
   type SolidState,
 } from './state';
 
-export type QType = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11;
+export type QType = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17;
+
+export const BLOCK_TYPES: QType[] = [12, 13, 14, 15, 16, 17];
 
 export const QTYPE_NAMES: Record<QType, string> = {
   1: '규칙 적용 (입체)',
@@ -53,6 +57,12 @@ export const QTYPE_NAMES: Record<QType, string> = {
   9: '규칙 찾기 (평면)',
   10: '회전 순서 찾기',
   11: '규칙 외우기',
+  12: '쌓기나무 규칙 적용',
+  13: '쌓기나무 돌린 모습',
+  14: '같은 쌓기나무 찾기',
+  15: '방향별로 본 모양',
+  16: '쌓기나무 조각 맞추기',
+  17: '두 쌓기나무 합쳐 돌리기',
 };
 
 export type MistakeTag =
@@ -74,6 +84,11 @@ export type MistakeTag =
   | 'wrongSymbol'
   | 'wrongJudge'
   | 'wrongRule'
+  | 'blockMoved'
+  | 'otherView'
+  | 'cellOff'
+  | 'wrongPiece'
+  | 'wrongSide'
   | 'random';
 
 export const MISTAKE_NAMES: Record<MistakeTag, string> = {
@@ -95,6 +110,11 @@ export const MISTAKE_NAMES: Record<MistakeTag, string> = {
   wrongSymbol: '다른 면',
   wrongJudge: '판별 오류',
   wrongRule: '규칙 오판',
+  blockMoved: '블록 하나 위치 다름',
+  otherView: '다른 방향에서 본 모양',
+  cellOff: '칸 하나 틀림',
+  wrongPiece: '맞지 않는 조각',
+  wrongSide: '붙이는 방향 틀림',
   random: '기타',
 };
 
@@ -105,7 +125,9 @@ export type Figure =
   | { kind: 'face'; solidId: SolidId; slot: number; look: SlotLook }
   | { kind: 'symbol'; symbol: string }
   | { kind: 'text'; parts: TextPart[] }
-  | { kind: 'ox'; value: boolean };
+  | { kind: 'ox'; value: boolean }
+  | { kind: 'blocks'; cells: Blocks; caption?: string; colors?: string[]; viewMarks?: ViewDir[] }
+  | { kind: 'grid'; grid: boolean[][]; caption?: string };
 
 export interface Option {
   figure: Figure;
@@ -116,12 +138,15 @@ export type Solution =
   | { kind: 'solid'; solidId: SolidId; labeling: Labeling; initial: SolidState; ops: RotationOp[]; labels: string[]; focusFace?: number }
   | { kind: 'fold'; solidId: SolidId; labeling: Labeling; edges: number[]; root: number; finalQ: Quat; ops: RotationOp[]; labels: string[]; highlight?: number[]; note?: string }
   | { kind: 'radial'; shape: RadialShape; cells: Cells; ops: RadialOp[]; labels: string[] }
-  | { kind: 'text'; parts: TextPart[][] };
+  | { kind: 'text'; parts: TextPart[][] }
+  | { kind: 'blocks'; initial: Blocks; steps: { m: Mat3 | 'mirror'; label: TextPart[]; axisLabel?: string }[]; note?: string; colors?: string[] }
+  | { kind: 'figs'; figs: Figure[]; parts: TextPart[][] };
 
 /** 연습할 때 옆에 띄우는 "직접 돌려보기" 판의 시작 상태 */
 export type Scratch =
   | { kind: 'solid'; solidId: SolidId; labeling: Labeling; initial: SolidState; net?: { edges: number[]; root: number } }
-  | { kind: 'radial'; shape: RadialShape; cells: Cells };
+  | { kind: 'radial'; shape: RadialShape; cells: Cells }
+  | { kind: 'blocks'; cells: Blocks; colors?: string[] };
 
 export interface Question {
   scratch?: Scratch;
@@ -155,7 +180,7 @@ const LETTER = ['①', '②', '③', '④', '⑤'];
 export const optionMark = (i: number) => LETTER[i] ?? `${i + 1}`;
 
 /** 후보 중 서로 다른 것만 골라 정답 + 오답 (count−1)개 → 섞어서 반환 */
-function assemble<T>(
+export function assemble<T>(
   rng: Rng,
   correct: T,
   candidates: { item: T; tag: MistakeTag }[],
@@ -908,7 +933,7 @@ function genFlash(p: GenParams, set: RuleSet): Question {
   const rng = makeRng(p.seed);
   const rule = rng.pick(set.rules as { id: number; op: RotationOp | RadialOp }[]);
   const desc = (op: RotationOp | RadialOp): TextPart[] =>
-    set.kind === 'solid' ? describeOp(op as RotationOp) : describeRadialOp(op as RadialOp);
+    set.kind === 'solid' ? describeOp(op as RotationOp) : set.kind === 'block' ? describeBlockOp(op as BlockOp) : describeRadialOp(op as RadialOp);
   const others = set.rules.filter((r) => r.id !== rule.id).map((r) => r.op as RotationOp | RadialOp);
   const extra: (RotationOp | RadialOp)[] =
     set.kind === 'solid'
@@ -916,7 +941,9 @@ function genFlash(p: GenParams, set: RuleSet): Question {
           ...set.rules.map((r) => inverseOp(r.op)),
           ...solidOpCandidates(set.solidId, set.fixedLabeling ?? set.exampleLabeling, SOLID_LEVELS[Math.max(2, set.level)]),
         ]
-      : radialOpCandidates(set.shape, RADIAL_LEVELS[set.level].kinds);
+      : set.kind === 'block'
+        ? blockOpCandidates({ views: ['front', 'top', 'right'], half: true, rolls: true, mirror: false })
+        : radialOpCandidates(set.shape, RADIAL_LEVELS[set.level].kinds);
   const { options, answer } = assemble(
     rng,
     rule.op,
@@ -968,6 +995,8 @@ export function generateQuestion(p: GenParams): Question {
       return genBacktrack(p);
     case 11:
       return genFlash(p, p.ruleSet ?? generateSolidRuleSet(p.level, p.seed ^ 0x1234567));
+    default:
+      return generateBlockQuestion(p);
   }
 }
 
@@ -982,6 +1011,10 @@ export function figureKey(f: Figure): string {
       return canonicalLabelSignature(f.solidId, f.labeling, symmetryGroup(f.solidId));
     case 'face':
       return JSON.stringify(f.look);
+    case 'blocks':
+      return blocksKey(f.cells);
+    case 'grid':
+      return gridKey(f.grid);
     default:
       return JSON.stringify(f);
   }

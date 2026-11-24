@@ -1,12 +1,12 @@
 import { useState } from 'react';
-import { MISTAKE_NAMES, optionMark, type Question } from '../../engine/question';
+import { BLOCK_TYPES, MISTAKE_NAMES, optionMark, type Question } from '../../engine/question';
 import { FigureView } from '../../ui/FigureView';
 import { Parts, RuleBadge } from '../../ui/Parts';
 import { SolutionView } from '../../render/SolutionPlayer';
 import { VIEW_LABEL, type AxisMark } from '../../render/AxisMarks';
 import { VIEW_AXIS, type View } from '../../engine/rotation';
 import { SOLID_NAMES } from '../../engine/solids';
-import { COMMON_FACTS, SOLID_FACTS, TYPE_TIPS } from './tips';
+import { BLOCK_FACTS, COMMON_FACTS, SOLID_FACTS, TYPE_TIPS } from './tips';
 
 /** 풀이 아래: 유형별 빨리 푸는 요령 + 알아둘 것 */
 function Tips({ q }: { q: Question }) {
@@ -20,6 +20,16 @@ function Tips({ q }: { q: Question }) {
           <li key={i}>{t}</li>
         ))}
       </ul>
+      {BLOCK_TYPES.includes(q.type) && (
+        <>
+          <h4>알아둘 것: 쌓기나무</h4>
+          <ul>
+            {BLOCK_FACTS.map((t, i) => (
+              <li key={i}>{t}</li>
+            ))}
+          </ul>
+        </>
+      )}
       {isSolid && (
         <>
           <h4>알아둘 것: {SOLID_NAMES[q.solidId!]}</h4>
@@ -88,6 +98,10 @@ export function QuestionView({
           빨간 점이 {marks.map((m) => m.label).join('·')} 쪽이에요. '{marks[0].label}에서 볼 때'는 그 점 쪽에서 도형을 바라본다는 뜻이에요.
         </p>
       )}
+      <details className="tips-toggle">
+        <summary>푸는 요령 보기</summary>
+        <Tips q={q} />
+      </details>
       {q.stemOps && (
         <ol className="stem-ops">
           {q.stemOps.map((p, i) => (
@@ -129,7 +143,6 @@ export function QuestionView({
           </div>
           <button onClick={() => setShowSol((s) => !s)}>{showSol ? '풀이 닫기' : '풀이 보기'}</button>
           {showSol && <SolutionView sol={q.solution} />}
-          {showSol && <Tips q={q} />}
         </div>
       )}
     </div>

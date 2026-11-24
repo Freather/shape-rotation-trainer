@@ -29,6 +29,17 @@ const TYPE_GROUPS: { title: string; items: [QType, string][] }[] = [
     ],
   },
   {
+    title: '쌓기나무',
+    items: [
+      [12, '규칙 번호만 보고 돌린 결과 고르기'],
+      [13, '돌린 뒤의 모습 고르기'],
+      [17, '두 덩어리를 붙인 뒤 돌린 모습 고르기'],
+      [14, '돌려서 같은 것 찾기 (거울상 구별)'],
+      [15, '앞·위·오른쪽에서 본 모양 고르기'],
+      [16, '완성 모양을 만드는 나머지 조각 찾기'],
+    ],
+  },
+  {
     title: '평면 도형',
     items: [
       [8, '규칙 번호만 보고 바뀐 결과 고르기'],
@@ -36,7 +47,7 @@ const TYPE_GROUPS: { title: string; items: [QType, string][] }[] = [
     ],
   },
 ];
-const RULE_TYPES: QType[] = [1, 8, 11];
+const RULE_TYPES: QType[] = [1, 8, 11, 12];
 
 export function maxLevel(type: QType): number {
   return type === 8 || type === 9 ? 4 : 5;
@@ -46,7 +57,7 @@ export function Practice() {
   const [type, setType] = useState<QType>(1);
   const [level, setLevel] = useState(1);
   const [solid, setSolid] = useState<SolidId | ''>('');
-  const [ruleKind, setRuleKind] = useState<'solid' | 'radial'>('solid');
+  const [ruleKind, setRuleKind] = useState<'solid' | 'radial' | 'block'>('solid');
   const [phase, setPhase] = useState<'config' | 'rules' | 'question'>('config');
   const [setParams, setSetParams] = useState<SetParams | null>(null);
   const [q, setQ] = useState<Question | null>(null);
@@ -82,12 +93,14 @@ export function Practice() {
     setScore({ ok: 0, total: 0 });
     setCount(0);
     if (RULE_TYPES.includes(type)) {
-      const kind = type === 8 ? 'radial' : type === 11 ? ruleKind : 'solid';
+      const kind = type === 8 ? 'radial' : type === 12 ? 'block' : type === 11 ? ruleKind : 'solid';
       const lv = kind === 'radial' ? Math.min(4, level) : level;
       const sp: SetParams =
         kind === 'solid'
           ? { kind: 'solid', level: lv, seed: randomSeed(), solidId: solid || undefined, allowMirror }
-          : { kind: 'radial', level: lv, seed: randomSeed() };
+          : kind === 'block'
+            ? { kind: 'block', level: lv, seed: randomSeed() }
+            : { kind: 'radial', level: lv, seed: randomSeed() };
       setSetParams(sp);
       setPhase('rules');
     } else {
@@ -109,7 +122,7 @@ export function Practice() {
   };
 
   if (phase === 'config') {
-    const showSolid = type !== 8 && type !== 9 && !(type === 11 && ruleKind === 'radial');
+    const showSolid = type !== 8 && type !== 9 && type < 12 && !(type === 11 && ruleKind !== 'solid');
     const solidChoices = SOLID_IDS.filter((id) => !([4, 5, 6, 7].includes(type) && (id === 'dodeca' || id === 'icosa' || (type === 6 && id === 'tetra'))));
     return (
       <div className="panel">
@@ -167,6 +180,9 @@ export function Practice() {
               </button>
               <button className={ruleKind === 'radial' ? 'on' : ''} onClick={() => setRuleKind('radial')}>
                 평면 도형
+              </button>
+              <button className={ruleKind === 'block' ? 'on' : ''} onClick={() => setRuleKind('block')}>
+                쌓기나무
               </button>
             </div>
           </>
@@ -233,7 +249,7 @@ export function Practice() {
           )}
 
         </div>
-        {showScratch && q.scratch && <Scratchpad q={q} ruleSet={ruleSet} />}
+        {showScratch && q.scratch && <Scratchpad q={q} ruleSet={ruleSet} revealed={revealed} />}
       </div>
     </div>
   );
@@ -257,6 +273,7 @@ export function LevelGuide() {
           <tr><td>3</td><td>정팔면체, 꼭짓점 축과 면 축</td><td>사각·육각·삼각 과녁, 뒤집기, 그림 이동</td></tr>
           <tr><td>4</td><td>정십이면체, 72°와 144°</td><td>꽃잎형, 조건이 붙은 색 바꿈</td></tr>
           <tr><td>5</td><td>여러 도형 섞음, 3~5번, 거울상 보기 많음, 시간 짧음</td><td></td></tr>
+          <tr><td colSpan={3} className="muted">쌓기나무: 레벨이 오를수록 블록 수가 4개에서 8개로 늘고, 앞·오른쪽 축, 180°, 넘어뜨리기, 거울 규칙이 차례로 더해져요.</td></tr>
         </tbody>
       </table>
     </details>

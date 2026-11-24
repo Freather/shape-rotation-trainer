@@ -17,14 +17,14 @@ export interface AxisMark {
 const R = Math.sqrt(3);
 const COLOR = '#d6336c';
 
-export function AxisMarks({ marks }: { marks: AxisMark[] }) {
+export function AxisMarks({ marks, radius = R }: { marks: AxisMark[]; radius?: number }) {
   return (
     <g pointerEvents="none">
       {marks.map((m, i) => {
         const d = normalize(m.dir);
         const facing = dot(d, CAMERA_DIR) > -0.05;
         const inner = projectPoint([0, 0, 0]);
-        const tip = projectPoint(scale(d, R * 1.18));
+        const tip = projectPoint(scale(d, radius * 1.18));
         // 화면에서 축이 거의 점으로 보일 때도 이름이 겹치지 않게 바깥쪽으로 밀기
         const along = [tip[0] - inner[0], tip[1] - inner[1]];
         const len = Math.hypot(along[0], along[1]) || 1;
@@ -39,7 +39,7 @@ export function AxisMarks({ marks }: { marks: AxisMark[] }) {
         if (m.angle) {
           const u = normalize(cross(d, Math.abs(d[1]) < 0.9 ? [0, 1, 0] : [1, 0, 0]));
           const v = cross(d, u);
-          const c = scale(d, R * 1.05);
+          const c = scale(d, radius * 1.05);
           const r = 0.42;
           const sgn = m.angle > 0 ? 1 : -1;
           const pts: [number, number][] = [];
