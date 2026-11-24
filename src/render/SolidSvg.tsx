@@ -4,7 +4,11 @@ import type { Look } from '../engine/state';
 import { drawsFromLook, type FaceDraw } from './project';
 import { Glyph } from './Glyph';
 
+import { AxisMarks, type AxisMark } from './AxisMarks';
+
 const VIEW = 2.25;
+/** 축 표시가 있을 때는 바깥 여백을 더 둔다 (도형 크기는 그대로) */
+const MARK_VIEW = 2.9;
 
 /** 면 방향에 따라 밝기가 다른 회색 (인쇄된 시험지 그림처럼) */
 const grayFor = (shade: number) => `hsl(40 6% ${Math.round(78 + 22 * shade)}%)`;
@@ -14,8 +18,10 @@ export function FaceDrawsSvg({
   size = 160,
   view = VIEW,
   onFaceClick,
+  children,
 }: {
   draws: FaceDraw[];
+  children?: React.ReactNode;
   size?: number;
   view?: number;
   onFaceClick?: (face: number) => void;
@@ -40,10 +46,15 @@ export function FaceDrawsSvg({
           </g>
         );
       })}
+      {children}
     </svg>
   );
 }
 
-export function SolidSvg({ look, size = 160, highlightSlots }: { look: Look; size?: number; highlightSlots?: number[] }) {
-  return <FaceDrawsSvg draws={drawsFromLook(look, highlightSlots)} size={size} />;
+export function SolidSvg({ look, size = 160, highlightSlots, marks }: { look: Look; size?: number; highlightSlots?: number[]; marks?: AxisMark[] }) {
+  return (
+    <FaceDrawsSvg draws={drawsFromLook(look, highlightSlots)} size={marks?.length ? Math.round((size * MARK_VIEW) / VIEW) : size} view={marks?.length ? MARK_VIEW : VIEW}>
+      {marks?.length ? <AxisMarks marks={marks} /> : null}
+    </FaceDrawsSvg>
+  );
 }

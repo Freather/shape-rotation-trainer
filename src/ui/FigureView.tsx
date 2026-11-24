@@ -7,14 +7,15 @@ import { Glyph } from '../render/Glyph';
 import { getSymbol } from '../symbols/library';
 import { useSettings } from '../store';
 import { Parts } from './Parts';
+import type { AxisMark } from '../render/AxisMarks';
 
-export function FigureView({ fig, size = 150 }: { fig: Figure; size?: number }) {
+export function FigureView({ fig, size = 150, marks }: { fig: Figure; size?: number; marks?: AxisMark[] }) {
   const mono = useSettings((s) => s.mono);
   switch (fig.kind) {
     case 'solid':
       return (
         <figure className="fig">
-          <SolidSvg look={fig.look} size={size} />
+          <SolidSvg look={fig.look} size={size} marks={marks} />
           {fig.caption && <figcaption>{fig.caption}</figcaption>}
         </figure>
       );

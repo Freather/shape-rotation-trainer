@@ -3,6 +3,16 @@ import { MISTAKE_NAMES, optionMark, type Question } from '../../engine/question'
 import { FigureView } from '../../ui/FigureView';
 import { Parts, RuleBadge } from '../../ui/Parts';
 import { SolutionView } from '../../render/SolutionPlayer';
+import { VIEW_LABEL, type AxisMark } from '../../render/AxisMarks';
+import { VIEW_AXIS, type View } from '../../engine/rotation';
+
+/** 문제에 '앞/위/오른쪽에서 볼 때'가 나오면 그 방향을 그림에 표시 */
+function viewMarks(q: Question): AxisMark[] {
+  if (q.solution.kind !== 'solid') return [];
+  const views = new Set<View>();
+  for (const op of q.solution.ops) if (op.kind === 'view') views.add(op.view);
+  return (['front', 'top', 'right'] as View[]).filter((v) => views.has(v)).map((v) => ({ dir: VIEW_AXIS[v], label: VIEW_LABEL[v] }));
+}
 
 export function QuestionView({
   q,
@@ -22,6 +32,7 @@ export function QuestionView({
   const [showSol, setShowSol] = useState(false);
   const textOptions = q.options.some((o) => o.figure.kind === 'text' || o.figure.kind === 'ox');
   const correct = selected === q.answer;
+  const marks = viewMarks(q);
   return (
     <div className="question paper">
       <div className="q-head">
@@ -31,7 +42,7 @@ export function QuestionView({
       {extraTop}
       <div className="stem">
         {q.stem.map((f, i) => (
-          <FigureView key={i} fig={f} size={q.stem.length > 1 ? 170 : 200} />
+          <FigureView key={i} fig={f} size={q.stem.length > 1 ? 170 : 200} marks={i === 0 ? marks : undefined} />
         ))}
         {q.seq && (
           <div className="seq" aria-label="적용할 규칙 순서">
@@ -44,6 +55,11 @@ export function QuestionView({
           </div>
         )}
       </div>
+      {marks.length > 0 && (
+        <p className="axis-note">
+          빨간 점이 {marks.map((m) => m.label).join('·')} 쪽이에요. '{marks[0].label}에서 볼 때'는 그 점 쪽에서 도형을 바라본다는 뜻이에요.
+        </p>
+      )}
       {q.stemOps && (
         <ol className="stem-ops">
           {q.stemOps.map((p, i) => (

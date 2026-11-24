@@ -12,6 +12,7 @@ import { FaceDrawsSvg } from './SolidSvg';
 import { RadialSvg } from './RadialSvg';
 import { easeInOut, usePlayer } from './usePlayer';
 import { Parts } from '../ui/Parts';
+import { AxisMarks, opMarks } from './AxisMarks';
 
 function Controls({ pl, total, labels, describe }: { pl: ReturnType<typeof usePlayer>; total: number; labels: string[]; describe: (i: number) => TextPart[] }) {
   return (
@@ -61,10 +62,14 @@ export function SolidSolution({ sol, size = 260 }: { sol: Extract<Solution, { ki
   const op = pl.p > 0 && pl.done < sol.ops.length ? sol.ops[pl.done] : null;
   const { point, vec } = animFns(s, op, pl.p, sol.labeling);
   const draws = drawsFromTransform(sol.solidId, sol.labeling, point, vec, sol.focusFace !== undefined ? [sol.focusFace] : []);
+  const marks = pl.done < sol.ops.length ? opMarks(hist[pl.done], sol.ops[pl.done], sol.labeling) : [];
   return (
     <div className="solution">
-      <FaceDrawsSvg draws={draws} size={size} />
-      {sol.focusFace !== undefined && <div className="muted small">노란 면이 마지막에 앞으로 와요. 이 면을 눈으로 따라가 보세요.</div>}
+      <FaceDrawsSvg draws={draws} size={size} view={2.9}>
+        <AxisMarks marks={marks} />
+      </FaceDrawsSvg>
+      {marks.length > 0 && <div className="muted small">빨간 선이 이번 단계에서 도는 축이고, 화살표가 도는 방향이에요.</div>}
+      {sol.focusFace !== undefined && <div className="muted small">노란 면은 마지막에 정면(가장 크게 보이는 면)에 오는 면이에요. 이 면을 눈으로 따라가 보세요.</div>}
       <Controls pl={pl} total={sol.ops.length} labels={sol.labels} describe={(i) => describeOp(sol.ops[i])} />
     </div>
   );

@@ -5,6 +5,7 @@ import { describeOp, type RotationOp } from '../../engine/rotation';
 import { applyOp, initialState, lookOf } from '../../engine/state';
 import { applyRadialOp, describeRadialOp, type RadialOp } from '../../engine/radial/ops';
 import { SolidSvg } from '../../render/SolidSvg';
+import { opMarks } from '../../render/AxisMarks';
 import { RadialSvg } from '../../render/RadialSvg';
 import { SolidSolution, RadialSolution } from '../../render/SolutionPlayer';
 import { Parts, RuleBadge } from '../../ui/Parts';
@@ -34,7 +35,7 @@ export function RuleCard({ set, index }: { set: RuleSet; index: number }) {
           </div>
         ) : (
           <div className="before-after">
-            <SolidSvg look={lookOf(s0, lab)} size={160} />
+            <SolidSvg look={lookOf(s0, lab)} size={160} marks={opMarks(s0, op, lab)} />
             <span className="arrow">→</span>
             <SolidSvg look={lookOf(s1, lab)} size={160} />
           </div>
