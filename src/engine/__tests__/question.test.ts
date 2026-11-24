@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { deg, quatFromAxisAngle, quatMul } from '../math';
-import { figureKey, generateQuestion, viewsConsistent, type QType } from '../question';
-import { isSymmetry } from '../rotation';
+import { figureKey, generateQuestion, type QType } from '../question';
+import { isSymmetry, symmetryGroup } from '../rotation';
 import { generateRadialRuleSet, generateSolidRuleSet } from '../rules';
 import { SOLID_IDS } from '../solids';
-import { initialState, resolveOp } from '../state';
+import { initialState, lookOf, resolveOp, visibleSignature } from '../state';
 
 describe('규칙 세트', () => {
   it('모든 규칙은 해당 다면체의 대칭 회전 (스냅 전 기준)', () => {
@@ -91,13 +91,18 @@ describe('문제 생성', () => {
         }
   });
 
-  it('유형 3: 정답이 O면 두 그림이 실제로 일치 가능, X면 불가능', () => {
+  it('유형 3: 정답이 O면 전개도를 접어 돌린 모습이 (나)와 같고, X면 어떻게 돌려도 안 됨', () => {
+    let o = 0;
     for (let seed = 1; seed <= 60; seed++) {
       const q = generateQuestion({ type: 3, level: (seed % 5) + 1, seed });
       const [a, b] = q.stem;
-      if (a.kind !== 'solid' || b.kind !== 'solid') throw new Error();
-      expect(viewsConsistent(a.look, b.look)).toBe(q.answer === 0);
+      if (a.kind !== 'net' || b.kind !== 'solid') throw new Error();
+      const can = symmetryGroup(a.solidId).some((g) => visibleSignature(lookOf({ solidId: a.solidId, q: g, mirrored: false }, a.labeling)) === visibleSignature(b.look));
+      expect(can).toBe(q.answer === 0);
+      if (q.answer === 0) o++;
     }
+    expect(o).toBeGreaterThan(10);
+    expect(o).toBeLessThan(50);
   });
 
   it('유형 4: 오답 보기는 정답 입체를 어떻게 돌려도 나오지 않는 모습', () => {

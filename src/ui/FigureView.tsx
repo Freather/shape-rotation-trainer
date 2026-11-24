@@ -64,6 +64,6 @@ export function FigureView({ fig, size = 150, marks }: { fig: Figure; size?: num
         </div>
       );
     case 'ox':
-      return <div className="fig-ox">{fig.value ? 'O 같은 도형' : 'X 다른 도형'}</div>;
+      return <div className="fig-ox">{fig.value ? 'O 될 수 있다' : 'X 될 수 없다'}</div>;
   }
 }

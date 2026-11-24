@@ -2,7 +2,7 @@
 // 같은 seed → 같은 문제 (오답노트에서 똑같이 다시 풀기)
 
 import { getSymbol } from '../symbols/library';
-import { QUAT_IDENTITY, dot, quatConj, quatMul, type Quat, type Vec3 } from './math';
+import { QUAT_IDENTITY, dot, quatMul, type Quat } from './math';
 import { defaultRoot, pickNet } from './net';
 import { makeRng, type Rng } from './rng';
 import { describeOp, inverseOp, symmetryGroup, type RotationOp, type TextPart } from './rotation';
@@ -114,7 +114,7 @@ export interface Option {
 
 export type Solution =
   | { kind: 'solid'; solidId: SolidId; labeling: Labeling; initial: SolidState; ops: RotationOp[]; labels: string[]; focusFace?: number }
-  | { kind: 'fold'; solidId: SolidId; labeling: Labeling; edges: number[]; root: number; finalQ: Quat; ops: RotationOp[]; labels: string[]; highlight?: number[] }
+  | { kind: 'fold'; solidId: SolidId; labeling: Labeling; edges: number[]; root: number; finalQ: Quat; ops: RotationOp[]; labels: string[]; highlight?: number[]; note?: string }
   | { kind: 'radial'; shape: RadialShape; cells: Cells; ops: RadialOp[]; labels: string[] }
   | { kind: 'text'; parts: TextPart[][] };
 
@@ -239,16 +239,6 @@ const randomGroupState = (solidId: SolidId, rng: Rng): SolidState => ({ solidId,
 function isViewOf(look: Look, solidId: SolidId, lab: Labeling): boolean {
   const sig = visibleSignature(look);
   return symmetryGroup(solidId).some((g) => visibleSignature(lookOf({ solidId, q: g, mirrored: false }, lab)) === sig);
-}
-
-/** 쿼터니언 → 축/각도 명령 (풀이 애니메이션용) */
-function quatToAxisOp(q: Quat): RotationOp | null {
-  let [w, x, y, z] = q;
-  if (w < 0) [w, x, y, z] = [-w, -x, -y, -z];
-  const angle = (2 * Math.acos(Math.min(1, w)) * 180) / Math.PI;
-  if (angle < 1e-6) return null;
-  const s = Math.sqrt(1 - w * w);
-  return { kind: 'axis', axis: [x / s, y / s, z / s] as Vec3, angle };
 }
 
 /** 마지막 상태에서 가장 정면에 있는 면 (풀이에서 주목할 면) */
@@ -429,60 +419,71 @@ export function viewsConsistent(a: Look, b: Look): boolean {
 
 function genSameDiff(p: GenParams): Question {
   const rng = makeRng(p.seed);
-  const solidId = pickSolid(p, rng);
+  const solidId = p.solidId ?? (p.level >= 3 ? rng.pick<SolidId>(['cube', 'octa']) : 'cube');
   const solid = getSolid(solidId);
   const lab = randomLabeling(solidId, rng);
-  const sA = randomGroupState(solidId, rng);
-  const lookA = lookOf(sA, lab);
+  const edges = pickNet(solidId, rng);
+  const sB = randomGroupState(solidId, rng);
   const same = rng.chance(0.5);
-  let lookB: Look = lookA;
-  let lab2 = lab;
-  for (let tries = 0; tries < 200; tries++) {
-    const sB = randomGroupState(solidId, rng);
-    if (same) {
-      lookB = lookOf(sB, lab);
-      if (visibleSignature(lookB) !== visibleSignature(lookA)) break;
-      continue;
+  const truth = lookOf(sB, lab);
+  let lookB: Look = truth;
+  let why = '';
+  if (!same) {
+    for (let tries = 0; tries < 200; tries++) {
+      const lab2 = lab.map((l) => ({ ...l }));
+      const kind = rng.int(3);
+      if (kind === 0) {
+        lookB = lookOf(sB, mirrorLabeling(solidId, lab));
+        why = '(나)는 거울에 비친 모습이에요. 한 꼭짓점을 둘러싼 면의 순서가 전개도와 반대 방향이에요.';
+      } else if (kind === 1) {
+        const f = rng.int(lab.length);
+        lab2[f].rot = (lab2[f].rot + 1 + rng.int(solid.sides - 1)) % solid.sides;
+        lookB = lookOf(sB, lab2);
+        why = '면 위치는 맞지만 노란 면의 그림 방향이 전개도와 달라요.';
+      } else {
+        const e = rng.pick(solid.edges);
+        [lab2[e.faces[0]], lab2[e.faces[1]]] = [lab2[e.faces[1]], lab2[e.faces[0]]];
+        lookB = lookOf(sB, lab2);
+        why = '노란 면들에 오는 그림이 전개도와 달라요. 이웃한 두 면의 그림이 서로 바뀌어 있어요.';
+      }
+      if (!isViewOf(lookB, solidId, lab)) break;
     }
-    lab2 = lab.map((l) => ({ ...l }));
-    const kind = rng.int(3);
-    if (kind === 0) {
-      lab2 = mirrorLabeling(solidId, lab);
-    } else if (kind === 1) {
-      const f = rng.int(lab.length);
-      lab2[f].rot = (lab2[f].rot + 1 + rng.int(solid.sides - 1)) % solid.sides;
-    } else {
-      const e = rng.pick(solid.edges);
-      [lab2[e.faces[0]], lab2[e.faces[1]]] = [lab2[e.faces[1]], lab2[e.faces[0]]];
-    }
-    lookB = lookOf(sB, lab2);
-    if (!viewsConsistent(lookA, lookB)) break;
   }
+  // 전개도를 접어 (나)와 같은 방향으로 돌린 모습과 다른 면을 노랗게
+  const info = slots(sB);
+  const diff = visibleSlots(solid)
+    .filter((sl) => {
+      const x = truth.slots[sl];
+      const y = lookB.slots[sl];
+      return x.symbol !== y.symbol || x.rot !== y.rot || x.flip !== y.flip;
+    })
+    .map((sl) => info[sl].face);
   const options: Option[] = [
     { figure: { kind: 'ox', value: true }, tag: same ? 'correct' : 'wrongJudge' },
     { figure: { kind: 'ox', value: false }, tag: same ? 'wrongJudge' : 'correct' },
   ];
-  const rel = quatMul(
-    symmetryGroup(solidId).find((g) => visibleSignature(lookOf({ solidId, q: g, mirrored: false }, lab)) === visibleSignature(lookB)) ?? QUAT_IDENTITY,
-    quatConj(sA.q),
-  );
-  const op = quatToAxisOp(rel);
   return {
-    scratch: { kind: 'solid', solidId, labeling: lab, initial: sA },
+    scratch: { kind: 'solid', solidId, labeling: lab, initial: { solidId, q: QUAT_IDENTITY, mirrored: false }, net: { edges, root: defaultRoot(solidId) } },
     type: 3,
     level: p.level,
     seed: p.seed,
     solidId,
-    prompt: '두 그림은 같은 도형을 돌려 놓은 것인가? 한 도형의 면에는 모두 서로 다른 그림이 있다.',
-    stem: [
-      { kind: 'solid', look: lookA, caption: '(가)' },
-      { kind: 'solid', look: lookB, caption: '(나)' },
-    ],
+    prompt: '왼쪽 전개도를 접어 만든 도형을 돌려서 오른쪽 모습이 될 수 있나요?',
+    stem: [netFig(solidId, edges, lab), { kind: 'solid', look: lookB, caption: '(나)' }],
     options,
     answer: same ? 0 : 1,
-    solution: same
-      ? { kind: 'solid', solidId, labeling: lab, initial: sA, ops: op ? [op] : [], labels: ['(가)를 돌려 (나) 만들기'] }
-      : { kind: 'text', parts: [['어떻게 돌려도 (가)와 (나)의 보이는 면이 함께 맞지 않아요.'], ['두 그림에 함께 보이는 그림을 찾아, (가)를 돌려 그 그림을 (나)와 같은 자리·같은 방향에 놓아 보세요.'], ['그때 (가)의 다른 면이 (나)에서 보이는 자리로 오는데 그림이 다르면 다른 도형이에요.']] },
+    solution: {
+      kind: 'fold',
+      solidId,
+      labeling: lab,
+      edges,
+      root: defaultRoot(solidId),
+      finalQ: sB.q,
+      ops: [],
+      labels: [],
+      highlight: same ? undefined : diff,
+      note: same ? '전개도를 접어 돌리면 (나)와 똑같아져요.' : `전개도를 접어 (나)와 같은 방향으로 돌린 모습이에요. ${why}`,
+    },
   };
 }
 

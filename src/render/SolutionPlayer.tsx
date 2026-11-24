@@ -124,7 +124,7 @@ export function FoldSolution({ sol, size = 260 }: { sol: Extract<Solution, { kin
   return (
     <div className="solution">
       <FaceDrawsSvg draws={draws} size={size} />
-      {sol.highlight && <div className="muted small">노란 두 면이 서로 맞은편이에요.</div>}
+      {sol.note ? <div className="muted small">{sol.note}</div> : sol.highlight && <div className="muted small">노란 두 면이 서로 맞은편이에요.</div>}
       <Controls pl={pl} total={1 + rotOps.length} labels={labels} describe={describe} />
     </div>
   );
