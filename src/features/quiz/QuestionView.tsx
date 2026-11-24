@@ -5,6 +5,34 @@ import { Parts, RuleBadge } from '../../ui/Parts';
 import { SolutionView } from '../../render/SolutionPlayer';
 import { VIEW_LABEL, type AxisMark } from '../../render/AxisMarks';
 import { VIEW_AXIS, type View } from '../../engine/rotation';
+import { SOLID_NAMES } from '../../engine/solids';
+import { COMMON_FACTS, SOLID_FACTS, TYPE_TIPS } from './tips';
+
+/** 풀이 아래: 유형별 빨리 푸는 요령 + 알아둘 것 */
+function Tips({ q }: { q: Question }) {
+  const solidFacts = q.solidId ? SOLID_FACTS[q.solidId] : [];
+  const isSolid = q.type !== 8 && q.type !== 9 && !!q.solidId;
+  return (
+    <div className="tips">
+      <h4>빨리 푸는 요령</h4>
+      <ul>
+        {TYPE_TIPS[q.type].map((t, i) => (
+          <li key={i}>{t}</li>
+        ))}
+      </ul>
+      {isSolid && (
+        <>
+          <h4>알아둘 것: {SOLID_NAMES[q.solidId!]}</h4>
+          <ul>
+            {[...solidFacts, ...COMMON_FACTS].map((t, i) => (
+              <li key={i}>{t}</li>
+            ))}
+          </ul>
+        </>
+      )}
+    </div>
+  );
+}
 
 /** 문제에 '앞/위/오른쪽에서 볼 때'가 나오면 그 방향을 그림에 표시 */
 function viewMarks(q: Question): AxisMark[] {
@@ -101,6 +129,7 @@ export function QuestionView({
           </div>
           <button onClick={() => setShowSol((s) => !s)}>{showSol ? '풀이 닫기' : '풀이 보기'}</button>
           {showSol && <SolutionView sol={q.solution} />}
+          {showSol && <Tips q={q} />}
         </div>
       )}
     </div>
