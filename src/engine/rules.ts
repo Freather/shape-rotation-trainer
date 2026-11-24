@@ -9,7 +9,7 @@ import { applyOp, initialState, signature, type Labeling } from './state';
 import { RADIAL_LEVELS, pickShape, radialOpCandidates, randomCells } from './radial/generate';
 import { radialSignature, type Cells, type Family, type RadialShape } from './radial/model';
 import { applyRadialOp, type RadialOp } from './radial/ops';
-import { allVisible, blockOpCandidates, isChiral, randomBlocks, sameEffect, IDENTITY, opMatrix, type BlockOp, type Blocks } from './blocks';
+import { allVisible, blockOpCandidates, isChiral, isEditOp, isIdentityOp, randomBlocks, sameEffect, type BlockOp, type Blocks } from './blocks';
 
 export interface Rule<Op> {
   id: number;
@@ -262,14 +262,15 @@ export interface BlockLevelConfig {
   half: boolean;
   rolls: boolean;
   mirror: boolean;
+  edits: boolean;
 }
 
 export const BLOCK_LEVELS: Record<number, BlockLevelConfig> = {
-  1: { blocks: [4, 4], box: 3, steps: [1, 1], ruleCount: 3, views: ['top', 'front'], half: false, rolls: false, mirror: false },
-  2: { blocks: [4, 5], box: 3, steps: [2, 2], ruleCount: 4, views: ['top', 'front', 'right'], half: false, rolls: false, mirror: false },
-  3: { blocks: [5, 6], box: 3, steps: [2, 3], ruleCount: 4, views: ['top', 'front', 'right'], half: true, rolls: true, mirror: false },
-  4: { blocks: [5, 7], box: 3, steps: [3, 3], ruleCount: 5, views: ['top', 'front', 'right'], half: true, rolls: true, mirror: false },
-  5: { blocks: [6, 8], box: 4, steps: [3, 4], ruleCount: 5, views: ['top', 'front', 'right'], half: true, rolls: true, mirror: true },
+  1: { blocks: [4, 4], box: 3, steps: [1, 1], ruleCount: 3, views: ['top', 'front'], half: false, rolls: false, mirror: false, edits: false },
+  2: { blocks: [4, 5], box: 3, steps: [2, 2], ruleCount: 4, views: ['top', 'front', 'right'], half: false, rolls: false, mirror: false, edits: false },
+  3: { blocks: [5, 6], box: 3, steps: [2, 3], ruleCount: 4, views: ['top', 'front', 'right'], half: true, rolls: true, mirror: false, edits: true },
+  4: { blocks: [5, 7], box: 3, steps: [3, 3], ruleCount: 5, views: ['top', 'front', 'right'], half: true, rolls: true, mirror: false, edits: true },
+  5: { blocks: [6, 8], box: 4, steps: [3, 4], ruleCount: 5, views: ['top', 'front', 'right'], half: true, rolls: true, mirror: true, edits: true },
 };
 
 /** 그림만으로 모양을 알 수 있고 돌리면 달라 보이는 쌓기나무 */
@@ -289,13 +290,16 @@ export function generateBlockRuleSet(level: number, seed: number): BlockRuleSet 
   const cfg = BLOCK_LEVELS[Math.min(5, Math.max(1, level))];
   const all = rng.shuffle(blockOpCandidates(cfg));
   const ops: BlockOp[] = [];
-  const isId = (o: BlockOp) => JSON.stringify(opMatrix(o)) === JSON.stringify(IDENTITY);
   // 거울은 레벨 5에서 꼭 하나
   if (cfg.mirror) ops.push({ kind: 'mirror' });
-  // 같은 축의 반대 방향을 섞어 헷갈리게
+  // 블록을 더하거나 빼는 규칙은 레벨 3부터 1~2개
+  if (cfg.edits) {
+    const edits = rng.shuffle(all.filter(isEditOp));
+    ops.push(...edits.slice(0, level >= 4 ? 2 : 1));
+  }
   for (const o of all) {
     if (ops.length >= cfg.ruleCount) break;
-    if (isId(o) || ops.some((x) => sameEffect(x, o))) continue;
+    if (isEditOp(o) || isIdentityOp(o) || ops.some((x) => sameEffect(x, o))) continue;
     ops.push(o);
   }
   const shuffled = rng.shuffle(ops);

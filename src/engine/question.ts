@@ -2,7 +2,7 @@
 // 같은 seed → 같은 문제 (오답노트에서 똑같이 다시 풀기)
 
 import { getSymbol } from '../symbols/library';
-import { blockOpCandidates, blocksKey, describeBlockOp, gridKey, type BlockOp, type Blocks, type Mat3, type ViewDir } from './blocks';
+import { blockOpCandidates, blocksKey, describeBlockOp, gridKey, type BlockOp, type Blocks, type ViewDir } from './blocks';
 import { generateBlockQuestion } from './blockQuestions';
 import { QUAT_IDENTITY, dot, quatMul, type Quat } from './math';
 import { defaultRoot, pickNet } from './net';
@@ -41,9 +41,9 @@ import {
   type SolidState,
 } from './state';
 
-export type QType = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17;
+export type QType = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18 | 19;
 
-export const BLOCK_TYPES: QType[] = [12, 13, 14, 15, 16, 17];
+export const BLOCK_TYPES: QType[] = [12, 13, 14, 15, 16, 17, 18, 19];
 
 export const QTYPE_NAMES: Record<QType, string> = {
   1: '규칙 적용 (입체)',
@@ -63,6 +63,8 @@ export const QTYPE_NAMES: Record<QType, string> = {
   15: '방향별로 본 모양',
   16: '쌓기나무 조각 맞추기',
   17: '두 쌓기나무 합쳐 돌리기',
+  18: '세 방향 모양으로 찾기',
+  19: '쌓기나무 규칙 찾기',
 };
 
 export type MistakeTag =
@@ -139,7 +141,7 @@ export type Solution =
   | { kind: 'fold'; solidId: SolidId; labeling: Labeling; edges: number[]; root: number; finalQ: Quat; ops: RotationOp[]; labels: string[]; highlight?: number[]; note?: string }
   | { kind: 'radial'; shape: RadialShape; cells: Cells; ops: RadialOp[]; labels: string[] }
   | { kind: 'text'; parts: TextPart[][] }
-  | { kind: 'blocks'; initial: Blocks; steps: { m: Mat3 | 'mirror'; label: TextPart[]; axisLabel?: string }[]; note?: string; colors?: string[] }
+  | { kind: 'blocks'; initial: Blocks; steps: { op: BlockOp; label: TextPart[]; axisLabel?: string }[]; note?: string; colors?: string[] }
   | { kind: 'figs'; figs: Figure[]; parts: TextPart[][] };
 
 /** 연습할 때 옆에 띄우는 "직접 돌려보기" 판의 시작 상태 */
@@ -942,7 +944,7 @@ function genFlash(p: GenParams, set: RuleSet): Question {
           ...solidOpCandidates(set.solidId, set.fixedLabeling ?? set.exampleLabeling, SOLID_LEVELS[Math.max(2, set.level)]),
         ]
       : set.kind === 'block'
-        ? blockOpCandidates({ views: ['front', 'top', 'right'], half: true, rolls: true, mirror: false })
+        ? (blockOpCandidates({ views: ['front', 'top', 'right'], half: true, rolls: true, mirror: false, edits: true }) as unknown as RotationOp[])
         : radialOpCandidates(set.shape, RADIAL_LEVELS[set.level].kinds);
   const { options, answer } = assemble(
     rng,

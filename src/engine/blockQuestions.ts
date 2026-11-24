@@ -11,7 +11,10 @@ import {
   ROTATIONS,
   VIEW_NAMES,
   allVisible,
+  applyBlockOp,
   applyBlockOps,
+  blockInverse,
+  validBlocks,
   blockOpCandidates,
   blocksKey,
   cellKey,
@@ -23,7 +26,6 @@ import {
   mirrorBlocks,
   moveOne,
   randomBlocks,
-  opMatrix,
   shapeKey,
   splitTwo,
   toggleOne,
@@ -37,7 +39,6 @@ import {
   SIDE_NAMES,
   type Side,
 } from './blocks';
-import { inverseOp } from './rotation';
 import { makeRng, type Rng } from './rng';
 import { assemble, type GenParams, type MistakeTag, type Question } from './question';
 
@@ -57,10 +58,21 @@ function visibleTurn(b: Blocks, rng: Rng, avoid?: string): Blocks {
 
 const stepsOf = (ops: BlockOp[]) =>
   ops.map((op) => ({
-    m: op.kind === 'mirror' ? ('mirror' as const) : opMatrix(op),
+    op,
     label: describeBlockOp(op),
     axisLabel: op.kind === 'view' ? VIEW_NAMES[op.view] : undefined,
   }));
+
+/** 명령을 차례로 했을 때 중간 모양이 모두 쓸 만한지 (바꾸기 명령 때문에 떨어지거나 너무 커지면 안 됨) */
+function runValid(b: Blocks, ops: BlockOp[]): Blocks | null {
+  let cur = b;
+  for (const op of ops) {
+    const nx = applyBlockOp(cur, op);
+    if (!validBlocks(nx) || blocksKey(nx) === blocksKey(cur)) return null;
+    cur = nx;
+  }
+  return cur;
+}
 
 // ---------------- 유형 12: 규칙 적용 ----------------
 
@@ -82,10 +94,12 @@ function genBlockRule(p: GenParams, set: BlockRuleSet): Question {
       seq.push(id);
     }
     ops = opsOf(seq);
-    ans = applyBlockOps(initial, ops);
+    const r = runValid(initial, ops);
+    if (!r) continue;
+    ans = r;
     if (allVisible(ans) && blocksKey(ans) !== blocksKey(initial)) break;
   }
-  const run = (o: BlockOp[]) => applyBlockOps(initial, o);
+  const run = (o: (BlockOp | null)[]) => (o.every(Boolean) ? applyBlockOps(initial, o as BlockOp[]) : moveOne(ans, rng) ?? ans);
   const cands: { item: Blocks; tag: MistakeTag }[] = [];
   const i = rng.int(seq.length);
   cands.push({ item: mirrorBlocks(ans), tag: 'mirror' });
@@ -101,9 +115,12 @@ function genBlockRule(p: GenParams, set: BlockRuleSet): Question {
     [s2[j], s2[j + 1]] = [s2[j + 1], s2[j]];
     cands.push({ item: run(opsOf(s2)), tag: 'orderSwap' });
   }
-  const rev = [...ops];
-  rev[i] = inverseOp(rev[i]) as BlockOp;
-  cands.push({ item: run(rev), tag: 'reverse' });
+  const inv = blockInverse(ops[i]);
+  if (inv) {
+    const rev: BlockOp[] = [...ops];
+    rev[i] = inv;
+    cands.push({ item: run(rev), tag: 'reverse' });
+  }
   cands.push({ item: run(ops.slice(0, -1)), tag: 'skipLast' });
   const mv = moveOne(ans, rng);
   if (mv) cands.push({ item: mv, tag: 'blockMoved' });
@@ -112,10 +129,13 @@ function genBlockRule(p: GenParams, set: BlockRuleSet): Question {
     ans,
     rng.shuffle(cands),
     blocksKey,
-    () => ({ item: visibleTurn(initial, rng), tag: 'random' }),
+    () => {
+      const x = rng.chance(0.5) ? moveOne(ans, rng) : visibleTurn(ans, rng);
+      return x ? { item: x, tag: 'random' } : null;
+    },
     (b) => blocksFig(b),
     5,
-    (b) => !allVisible(b),
+    (b) => !validBlocks(b) || !allVisible(b),
   );
   return {
     scratch: { kind: 'blocks', cells: initial },
@@ -137,7 +157,7 @@ function genBlockRule(p: GenParams, set: BlockRuleSet): Question {
 function genBlockTurn(p: GenParams): Question {
   const rng = makeRng(p.seed);
   const cfg = BLOCK_LEVELS[Math.min(5, Math.max(1, p.level))];
-  const all = blockOpCandidates({ ...cfg, mirror: false });
+  const all = blockOpCandidates({ ...cfg, mirror: false, edits: false });
   const n = Math.min(3, Math.max(1, Math.ceil(p.level / 2)));
   let initial: Blocks = [];
   let ops: BlockOp[] = [];
@@ -151,7 +171,7 @@ function genBlockTurn(p: GenParams): Question {
   const run = (o: BlockOp[]) => applyBlockOps(initial, o);
   const cands: { item: Blocks; tag: MistakeTag }[] = [{ item: mirrorBlocks(ans), tag: 'mirror' }];
   const rev = [...ops];
-  rev[rev.length - 1] = inverseOp(rev[rev.length - 1]) as BlockOp;
+  rev[rev.length - 1] = blockInverse(rev[rev.length - 1])!;
   cands.push({ item: run(rev), tag: 'reverse' });
   if (ops.length > 1) cands.push({ item: run(ops.slice(0, -1)), tag: 'skipLast' });
   const swapAxis = [...ops];
@@ -230,7 +250,7 @@ function genBlockSame(p: GenParams): Question {
     solution: {
       kind: 'blocks',
       initial: base,
-      steps: [{ m, label: ['왼쪽 모양을 돌리면 정답과 똑같아져요.'] }],
+      steps: [{ op: { kind: 'matrix', m }, label: ['왼쪽 모양을 돌리면 정답과 똑같아져요.'] }],
       note: isChiral(base) ? '거울에 비친 모양은 아무리 돌려도 원래 모양과 겹치지 않아요. 길게 뻗은 줄 하나를 기준으로 잡고, 꺾인 블록이 그 줄의 왼쪽인지 오른쪽인지 비교해 보세요.' : undefined,
     },
   };
@@ -375,7 +395,7 @@ function genBlockJoin(p: GenParams): Question {
   const rng = makeRng(p.seed);
   const lv = Math.min(5, Math.max(1, p.level));
   const cfg = BLOCK_LEVELS[lv];
-  const all = blockOpCandidates({ ...cfg, mirror: false });
+  const all = blockOpCandidates({ ...cfg, mirror: false, edits: false });
   const sides: Side[] = lv <= 1 ? ['right', 'top'] : lv <= 2 ? ['right', 'top', 'front'] : ['right', 'left', 'top', 'front', 'back'];
   const nOps = lv <= 2 ? 1 : lv <= 4 ? rng.range(1, 2) : 2;
   const size = (): number => rng.range(lv <= 2 ? 2 : 3, lv <= 2 ? 3 : 4);
@@ -404,7 +424,7 @@ function genBlockJoin(p: GenParams): Question {
   for (const s2 of rng.shuffle(sides.filter((x) => x !== side)).slice(0, 2)) push(run(attach(A, B, s2)), 'wrongSide');
   push(mirrorBlocks(ans), 'mirror');
   const rev = [...ops];
-  rev[rev.length - 1] = inverseOp(rev[rev.length - 1]) as BlockOp;
+  rev[rev.length - 1] = blockInverse(rev[rev.length - 1])!;
   push(run(joined, rev), 'reverse');
   push(run(attach(A, transform(B, rng.pick(ROTATIONS.slice(1))), side)), 'wrongPiece');
   push(moveOne(ans, rng), 'blockMoved');
@@ -444,7 +464,106 @@ function genBlockJoin(p: GenParams): Question {
   };
 }
 
+// ---------------- 유형 18: 세 방향 모양 보고 쌓기나무 고르기 ----------------
+
+const VIEWS3: ViewDir[] = ['front', 'top', 'right'];
+const viewsSig = (b: Blocks) => VIEWS3.map((v) => gridKey(viewGrid(b, v))).join('|');
+
+function genBlockFromViews(p: GenParams): Question {
+  const rng = makeRng(p.seed);
+  const base = pickBlocks(rng, p.level + 1, true);
+  const sig = viewsSig(base);
+  const cands: { item: Blocks; tag: MistakeTag }[] = [{ item: mirrorBlocks(base), tag: 'mirror' }];
+  for (let t = 0; t < 5; t++) {
+    const mv = moveOne(base, rng);
+    if (mv) cands.push({ item: mv, tag: 'blockMoved' });
+  }
+  cands.push({ item: applyBlockOp(base, { kind: 'view', view: 'top', dir: rng.chance(0.5) ? 'cw' : 'ccw', angle: 90 }), tag: 'otherView' });
+  const { options, answer } = assemble(
+    rng,
+    base,
+    [cands[0], ...rng.shuffle(cands.slice(1))],
+    blocksKey,
+    () => {
+      const mv = moveOne(rng.chance(0.5) ? base : mirrorBlocks(base), rng);
+      return mv ? { item: mv, tag: 'blockMoved' } : null;
+    },
+    (b) => blocksFig(b),
+    5,
+    (b) => viewsSig(b) === sig || !validBlocks(b) || !allVisible(b),
+  );
+  return {
+    scratch: undefined,
+    type: 18,
+    level: p.level,
+    seed: p.seed,
+    prompt: '앞, 위, 오른쪽에서 본 모양이 아래와 같은 쌓기나무는?',
+    stem: VIEWS3.map((v) => ({ kind: 'grid' as const, grid: viewGrid(base, v), caption: `${VIEW_NAMES[v]}에서 본 모양` })),
+    options,
+    answer,
+    solution: {
+      kind: 'figs',
+      figs: [{ kind: 'blocks', cells: base, viewMarks: VIEWS3, caption: '정답' }],
+      parts: [
+        ['위에서 본 모양으로 바닥 자리를 먼저 정해요. 그다음 앞에서 본 모양으로 왼쪽부터 줄마다 높이를, 오른쪽에서 본 모양으로 앞쪽부터 줄마다 높이를 맞춰 봐요.'],
+        ['보기를 하나씩 세 방향으로 볼 필요는 없어요. 위에서 본 모양부터 맞지 않는 보기를 지우면 빨라요.'],
+      ],
+    },
+  };
+}
+
+// ---------------- 유형 19: 전후 보고 규칙 찾기 ----------------
+
+function genBlockFind(p: GenParams): Question {
+  const rng = makeRng(p.seed);
+  const lv = Math.min(5, Math.max(1, p.level));
+  const all = blockOpCandidates({ views: ['top', 'front', 'right'], half: lv >= 2, rolls: lv >= 2, mirror: lv >= 4, edits: lv >= 3 });
+  let before: Blocks = [];
+  let op: BlockOp = all[0];
+  let after: Blocks = [];
+  for (let t = 0; t < 100; t++) {
+    before = pickBlocks(rng, lv, true);
+    op = rng.pick(all);
+    after = applyBlockOp(before, op);
+    if (validBlocks(after) && allVisible(after) && blocksKey(after) !== blocksKey(before)) break;
+  }
+  const key = (o: BlockOp) => describeBlockOp(o).join('');
+  const cands: { item: BlockOp; tag: MistakeTag }[] = [];
+  const inv = blockInverse(op);
+  if (inv) cands.push({ item: inv, tag: 'reverse' });
+  if (op.kind === 'view') for (const v of VIEWS3) if (v !== op.view) cands.push({ item: { ...op, view: v }, tag: 'ruleConfuse' });
+  if (op.kind !== 'mirror') cands.push({ item: { kind: 'mirror' }, tag: 'mirrorVsRotate' });
+  const { options, answer } = assemble(
+    rng,
+    op,
+    [...cands.slice(0, 1), ...rng.shuffle(cands.slice(1))],
+    key,
+    () => ({ item: rng.pick(all), tag: 'wrongRule' }),
+    (o) => ({ kind: 'text', parts: describeBlockOp(o) }),
+    5,
+    (o) => blocksKey(applyBlockOp(before, o)) === blocksKey(after),
+  );
+  return {
+    scratch: { kind: 'blocks', cells: before },
+    type: 19,
+    level: p.level,
+    seed: p.seed,
+    prompt: '왼쪽 쌓기나무가 오른쪽처럼 바뀌었어요. 어떤 규칙을 적용했나요?',
+    stem: [blocksFig(before, '처음'), blocksFig(after, '바뀐 뒤')],
+    options,
+    answer,
+    solution: { kind: 'blocks', initial: before, steps: stepsOf([op]) },
+  };
+}
+
+/** 보기 5개를 못 채운 경우 다른 seed로 다시 (같은 seed면 늘 같은 문제) */
 export function generateBlockQuestion(p: GenParams): Question {
+  let q = genBlockOnce(p);
+  for (let k = 1; k < 12 && q.options.length < 5; k++) q = genBlockOnce({ ...p, seed: (p.seed + k * 7919) >>> 0 });
+  return { ...q, seed: p.seed };
+}
+
+function genBlockOnce(p: GenParams): Question {
   switch (p.type) {
     case 12: {
       const set = p.ruleSet?.kind === 'block' ? p.ruleSet : generateBlockRuleSet(Math.min(5, Math.max(1, p.level)), p.seed ^ 0x1234567);
@@ -458,6 +577,10 @@ export function generateBlockQuestion(p: GenParams): Question {
       return genBlockViews(p);
     case 16:
       return genBlockPiece(p);
+    case 18:
+      return genBlockFromViews(p);
+    case 19:
+      return genBlockFind(p);
     default:
       return genBlockJoin(p);
   }

@@ -81,7 +81,7 @@ export function BlocksSvg({ cells, size = 160, view, q = QUAT_IDENTITY, sx = 1, 
 export function GridSvg({ grid, size = 110 }: { grid: boolean[][]; size?: number }) {
   const rows = grid.length;
   const cols = grid[0]?.length ?? 0;
-  const n = Math.max(rows, cols, 3);
+  const n = Math.max(rows, cols, 4);
   const cell = 100 / (n + 0.6);
   const ox = (100 - cols * cell) / 2;
   const oy = (100 - rows * cell) / 2;

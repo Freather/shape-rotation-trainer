@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ROTATIONS, applyBlockOp, blocksKey, completes, isChiral, mirrorBlocks, opMatrix, shapeKey, transform, viewGrid, gridKey, type Blocks } from '../blocks';
+import { sameEffect, ROTATIONS, applyBlockOp, blocksKey, completes, isChiral, mirrorBlocks, opMatrix, shapeKey, transform, viewGrid, gridKey, type Blocks } from '../blocks';
 import { figureKey, generateQuestion } from '../question';
 import { generateBlockRuleSet } from '../rules';
 
@@ -45,6 +45,30 @@ describe('쌓기나무 엔진', () => {
     expect(opMatrix({ kind: 'mirror' })[0][0]).toBe(-1);
   });
 
+  it('더 쌓기, 맨 위층 빼기, 바닥 채우기', () => {
+    expect(blocksKey(applyBlockOp(L, { kind: 'stack' }))).toBe(blocksKey([...L, [0, 1, 0], [1, 1, 0], [2, 2, 0]]));
+    expect(blocksKey(applyBlockOp(L, { kind: 'dropTop' }))).toBe(blocksKey(L.slice(0, 3)));
+    const corner: Blocks = [
+      [0, 0, 0],
+      [1, 0, 0],
+      [0, 0, 1],
+      [0, 1, 0],
+    ];
+    expect(applyBlockOp(corner, { kind: 'fillFloor' }).length).toBe(5);
+  });
+
+  it('유형 18: 정답만 세 방향 모양이 같음, 유형 19: 정답 규칙만 같은 결과', () => {
+    for (let seed = 1; seed <= 30; seed++) {
+      const q = generateQuestion({ type: 18, level: (seed % 5) + 1, seed });
+      const views = q.stem.map((f) => (f.kind === 'grid' ? gridKey(f.grid) : '')).join('|');
+      q.options.forEach((o, i) => {
+        if (o.figure.kind !== 'blocks') throw new Error();
+        const c = o.figure.cells;
+        expect((['front', 'top', 'right'] as const).map((v) => gridKey(viewGrid(c, v))).join('|') === views).toBe(i === q.answer);
+      });
+    }
+  });
+
   it('방향별 모양', () => {
     expect(gridKey(viewGrid(L, 'front'))).toBe('001/111');
     expect(gridKey(viewGrid(L, 'top'))).toBe('111');
@@ -76,13 +100,12 @@ describe('쌓기나무 문제', () => {
     for (let seed = 1; seed <= 30; seed++)
       for (const lv of [1, 2, 3, 4, 5]) {
         const set = generateBlockRuleSet(lv, seed);
-        const keys = set.rules.map((r) => JSON.stringify(opMatrix(r.op)));
-        expect(new Set(keys).size).toBe(keys.length);
+        for (const a of set.rules) for (const b of set.rules) if (a !== b) expect(sameEffect(a.op, b.op)).toBe(false);
       }
   });
 
   it('유형 12~17: 보기 5개가 서로 다르고 정답 표시가 맞음', () => {
-    for (const type of [12, 13, 14, 15, 16, 17] as const)
+    for (const type of [12, 13, 14, 15, 16, 17, 18, 19] as const)
       for (let seed = 1; seed <= 25; seed++) {
         const q = generateQuestion({ type, level: (seed % 5) + 1, seed });
         expect(q.options.length).toBe(5);

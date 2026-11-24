@@ -7,7 +7,8 @@ import { applyRadialOp, describeRadialOp, type RadialOp } from '../../engine/rad
 import { SolidSvg } from '../../render/SolidSvg';
 import { AxisMarks, VIEW_LABEL, opMarks } from '../../render/AxisMarks';
 import { BlocksSvg, blocksRadius } from '../../render/BlocksSvg';
-import { applyBlockOp, describeBlockOp, opMatrix, type BlockOp } from '../../engine/blocks';
+import { applyBlockOp, describeBlockOp, type BlockOp } from '../../engine/blocks';
+import { blockOpMarks } from '../../render/blockAnim';
 import { RadialSvg } from '../../render/RadialSvg';
 import { SolidSolution, RadialSolution, BlocksSolution } from '../../render/SolutionPlayer';
 import { Parts, RuleBadge } from '../../ui/Parts';
@@ -48,8 +49,8 @@ export function RuleCard({ set, index }: { set: RuleSet; index: number }) {
   if (set.kind === 'block') {
     const op = rule.op as BlockOp;
     const b1 = applyBlockOp(set.example, op);
-    const r = blocksRadius(set.example);
-    const m = op.kind === 'mirror' ? [] : opMarks(initialState('cube'), op, []).map((x) => ({ ...x, label: op.kind === 'view' ? VIEW_LABEL[op.view] : undefined }));
+    const r = Math.max(blocksRadius(set.example), blocksRadius(b1));
+    const m = blockOpMarks(op, op.kind === 'view' ? VIEW_LABEL[op.view] : undefined);
     const V = Math.max(1.9, r * 1.08) + 1;
     return (
       <div className="rule-card" onClick={() => setAnimate((a) => !a)}>
@@ -62,7 +63,7 @@ export function RuleCard({ set, index }: { set: RuleSet; index: number }) {
         {animate ? (
           <div onClick={(e) => e.stopPropagation()}>
             <BlocksSolution
-              sol={{ kind: 'blocks', initial: set.example, steps: [{ m: op.kind === 'mirror' ? 'mirror' : opMatrix(op), label: describeBlockOp(op), axisLabel: op.kind === 'view' ? VIEW_LABEL[op.view] : undefined }] }}
+              sol={{ kind: 'blocks', initial: set.example, steps: [{ op, label: describeBlockOp(op), axisLabel: op.kind === 'view' ? VIEW_LABEL[op.view] : undefined }] }}
               size={190}
             />
             <button className="link" onClick={() => setAnimate(false)}>닫기</button>

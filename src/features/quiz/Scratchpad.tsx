@@ -101,11 +101,15 @@ export function Scratchpad({ q, ruleSet, revealed = true }: { q: Question; ruleS
   const sc = q.scratch;
   if (!sc) return null;
   // 붙인 모양 자체가 문제의 절반이라 답을 고르기 전에는 보여주지 않음
-  if (q.type === 17 && !revealed)
+  if ((q.type === 17 || q.type === 19) && !revealed)
     return (
       <aside className="scratch-panel">
         <h3>직접 돌려보기</h3>
-        <p className="muted small">이 유형은 두 조각을 붙이는 것까지가 문제라서, 답을 고른 뒤에 붙인 모양을 돌려볼 수 있어요.</p>
+        <p className="muted small">
+          {q.type === 17
+            ? '이 유형은 두 조각을 붙이는 것까지가 문제라서, 답을 고른 뒤에 붙인 모양을 돌려볼 수 있어요.'
+            : '버튼을 하나씩 눌러 보면 답이 나와 버려서, 답을 고른 뒤에 돌려볼 수 있어요.'}
+        </p>
       </aside>
     );
   return (

@@ -10,8 +10,19 @@ export type Cell = [number, number, number];
 export type Blocks = Cell[];
 export type Mat3 = number[][];
 
-/** 쌓기나무에 쓰는 회전 명령: 보는 방향 기준 회전, 넘어뜨리기, 좌우 거울 */
-export type BlockOp = Extract<RotationOp, { kind: 'view' | 'roll' | 'mirror' }>;
+/**
+ * 쌓기나무 명령
+ * - 돌리기: 보는 방향 기준 회전, 넘어뜨리기, 좌우 거울, (풀이용) 임의 회전 행렬
+ * - 바꾸기: 기둥마다 한 개씩 더 쌓기, 맨 위층 빼기, 1층 빈자리 채우기
+ */
+export type BlockOp =
+  | Extract<RotationOp, { kind: 'view' | 'roll' | 'mirror' }>
+  | { kind: 'matrix'; m: Mat3 }
+  | { kind: 'stack' }
+  | { kind: 'dropTop' }
+  | { kind: 'fillFloor' };
+
+export const isEditOp = (op: BlockOp) => op.kind === 'stack' || op.kind === 'dropTop' || op.kind === 'fillFloor';
 
 export const DIRS6: Cell[] = [
   [1, 0, 0],
@@ -149,31 +160,98 @@ export function opMatrix(op: BlockOp): Mat3 {
       return matFromAxis(ROLL_AXIS[op.dir].axis, ROLL_AXIS[op.dir].angle);
     case 'mirror':
       return MIRROR_X;
+    case 'matrix':
+      return op.m;
+    default:
+      return IDENTITY;
   }
 }
 
-export const applyBlockOp = (b: Blocks, op: BlockOp) => transform(b, opMatrix(op));
+/** 칸 순서를 지키며 바꾸기 (새 칸은 뒤에 붙음) */
+function editBlocks(b: Blocks, op: BlockOp): Blocks {
+  const n = normalize(b);
+  const set = new Set(n.map(cellKey));
+  const [w, h, d] = dims(n);
+  switch (op.kind) {
+    case 'stack': {
+      const add: Blocks = [];
+      for (let x = 0; x < w; x++)
+        for (let z = 0; z < d; z++) {
+          let top = -1;
+          for (let y = 0; y < h; y++) if (set.has(cellKey([x, y, z]))) top = y;
+          if (top >= 0) add.push([x, top + 1, z]);
+        }
+      return [...n, ...add];
+    }
+    case 'dropTop':
+      if (h <= 1) return n;
+      return normalize(n.filter((c) => c[1] < h - 1));
+    case 'fillFloor': {
+      const add: Blocks = [];
+      for (let x = 0; x < w; x++) for (let z = 0; z < d; z++) if (!set.has(cellKey([x, 0, z]))) add.push([x, 0, z]);
+      return [...n, ...add];
+    }
+    default:
+      return n;
+  }
+}
+
+export const applyBlockOp = (b: Blocks, op: BlockOp): Blocks => (isEditOp(op) ? editBlocks(b, op) : transform(b, opMatrix(op)));
 export const applyBlockOps = (b: Blocks, ops: BlockOp[]) => ops.reduce(applyBlockOp, b);
+
+/** 문제에 쓸 수 있는 덩어리인지: 붙어 있고 너무 크지 않음 */
+export const validBlocks = (b: Blocks, box = 4, max = 12) => b.length > 0 && b.length <= max && isConnected(b) && dims(b).every((v) => v <= box);
+
+/** 거꾸로 하는 명령 (바꾸기 명령은 없음) */
+export function blockInverse(op: BlockOp): BlockOp | null {
+  switch (op.kind) {
+    case 'view':
+      return op.angle === 180 ? op : { ...op, dir: op.dir === 'cw' ? 'ccw' : 'cw' };
+    case 'roll':
+      return { kind: 'roll', dir: ({ forward: 'backward', backward: 'forward', right: 'left', left: 'right' } as const)[op.dir] };
+    case 'mirror':
+      return op;
+    case 'matrix':
+      return { kind: 'matrix', m: op.m[0].map((_, j) => op.m.map((r) => r[j])) };
+    default:
+      return null;
+  }
+}
 
 /** 회전 행렬 → 쿼터니언 (풀이 애니메이션) */
 export const matToQuat = (m: Mat3): Quat => quatFromMatrix(m);
 
 export function describeBlockOp(op: BlockOp): TextPart[] {
-  const dirText = op.kind === 'view' ? (op.dir === 'cw' ? '시계방향' : '반시계방향') : '';
   switch (op.kind) {
     case 'view': {
       const v = { front: '앞', top: '위', right: '오른쪽' }[op.view];
-      return [op.angle === 180 ? `${v}에서 볼 때 180° 돌리기` : `${v}에서 볼 때 ${dirText} 90°`];
+      return [op.angle === 180 ? `${v}에서 볼 때 180° 돌리기` : `${v}에서 볼 때 ${op.dir === 'cw' ? '시계방향' : '반시계방향'} 90°`];
     }
     case 'roll':
       return [{ forward: '앞으로 넘어뜨리기', backward: '뒤로 넘어뜨리기', right: '오른쪽으로 넘어뜨리기', left: '왼쪽으로 넘어뜨리기' }[op.dir]];
     case 'mirror':
       return ['거울에 비친 모습으로 좌우 뒤집기'];
+    case 'matrix':
+      return ['돌리기'];
+    case 'stack':
+      return ['기둥마다 맨 위에 한 개씩 더 쌓기'];
+    case 'dropTop':
+      return ['맨 위층 블록을 모두 빼기'];
+    case 'fillFloor':
+      return ['1층 빈자리를 채워 바닥을 직사각형으로 만들기'];
   }
 }
 
+export interface BlockOpOptions {
+  views: ('front' | 'top' | 'right')[];
+  half: boolean;
+  rolls: boolean;
+  mirror: boolean;
+  edits?: boolean;
+}
+
 /** 쌓기나무에 쓸 수 있는 명령 후보 */
-export function blockOpCandidates(opts: { views: ('front' | 'top' | 'right')[]; half: boolean; rolls: boolean; mirror: boolean }): BlockOp[] {
+export function blockOpCandidates(opts: BlockOpOptions): BlockOp[] {
   const out: BlockOp[] = [];
   for (const view of opts.views) {
     out.push({ kind: 'view', view, dir: 'cw', angle: 90 }, { kind: 'view', view, dir: 'ccw', angle: 90 });
@@ -181,10 +259,31 @@ export function blockOpCandidates(opts: { views: ('front' | 'top' | 'right')[]; 
   }
   if (opts.rolls) for (const dir of ['forward', 'backward', 'right', 'left'] as const) out.push({ kind: 'roll', dir });
   if (opts.mirror) out.push({ kind: 'mirror' });
+  if (opts.edits) out.push({ kind: 'stack' }, { kind: 'dropTop' }, { kind: 'fillFloor' });
   return out;
 }
 
-export const sameEffect = (a: BlockOp, b: BlockOp) => matKey(opMatrix(a)) === matKey(opMatrix(b));
+// 효과 비교용으로 쓰는 비대칭 모양들
+const PROBES: Blocks[] = [
+  [
+    [0, 0, 0],
+    [1, 0, 0],
+    [1, 1, 0],
+    [1, 1, 1],
+    [2, 0, 0],
+  ],
+  [
+    [0, 0, 0],
+    [0, 0, 1],
+    [1, 0, 1],
+    [0, 1, 0],
+    [0, 2, 0],
+  ],
+];
+
+/** 두 명령이 같은 효과인지 */
+export const sameEffect = (a: BlockOp, b: BlockOp) => PROBES.every((p) => blocksKey(applyBlockOp(p, a)) === blocksKey(applyBlockOp(p, b)));
+export const isIdentityOp = (op: BlockOp) => PROBES.every((p) => blocksKey(applyBlockOp(p, op)) === blocksKey(p));
 
 // ---------------- 만들기 ----------------
 

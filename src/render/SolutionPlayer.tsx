@@ -1,7 +1,7 @@
 // 풀이 보기: 초기 → 각 단계 애니메이션 (SVG, 렌더러 없이)
 import { useMemo, type ReactNode } from 'react';
 import { CAMERA_DIR, getSolid } from '../engine/solids';
-import { QUAT_IDENTITY, deg, quatFromAxisAngle, quatFromMatrix, quatFromTo, quatSlerp, rotateVec, sub, type Quat, type Vec3 } from '../engine/math';
+import { QUAT_IDENTITY, deg, quatFromAxisAngle, quatFromTo, quatSlerp, rotateVec, sub, type Quat, type Vec3 } from '../engine/math';
 import { describeOp, type RotationOp, type TextPart } from '../engine/rotation';
 import { resolveOp, stateHistory, transformVec, type Labeling, type SolidState } from '../engine/state';
 import { applyT, foldBounds, foldTransforms, rotateT } from '../engine/net';
@@ -12,9 +12,10 @@ import { FaceDrawsSvg } from './SolidSvg';
 import { RadialSvg } from './RadialSvg';
 import { easeInOut, usePlayer } from './usePlayer';
 import { Parts } from '../ui/Parts';
-import { AxisMarks, opMarks, type AxisMark } from './AxisMarks';
+import { AxisMarks, opMarks } from './AxisMarks';
 import { BlocksSvg, blocksRadius } from './BlocksSvg';
-import { mirrorBlocks, transform } from '../engine/blocks';
+import { applyBlockOp, isEditOp, type Blocks } from '../engine/blocks';
+import { blockFrame, blockOpMarks, colorsAfter } from './blockAnim';
 import { FigureView } from '../ui/FigureView';
 
 function Controls({ pl, total, labels, describe }: { pl: ReturnType<typeof usePlayer>; total: number; labels: string[]; describe: (i: number) => TextPart[] }) {
@@ -148,30 +149,26 @@ export function RadialSolution({ sol, size = 260 }: { sol: Extract<Solution, { k
 /** 쌓기나무 풀이: 단계마다 돌리는 축과 방향을 보여주며 애니메이션 */
 export function BlocksSolution({ sol, size = 260 }: { sol: Extract<Solution, { kind: 'blocks' }>; size?: number }) {
   const hist = useMemo(() => {
-    const h = [sol.initial];
-    for (const st of sol.steps) h.push(st.m === 'mirror' ? mirrorBlocks(h[h.length - 1]) : transform(h[h.length - 1], st.m));
+    const h: { cells: Blocks; colors?: (string | undefined)[] }[] = [{ cells: sol.initial, colors: sol.colors }];
+    for (const st of sol.steps) {
+      const last = h[h.length - 1];
+      h.push({ cells: applyBlockOp(last.cells, st.op), colors: colorsAfter(last.cells, st.op, last.colors) });
+    }
     return h;
   }, [sol]);
   const pl = usePlayer(sol.steps.length, { stepMs: 1200 });
-  const cells = hist[pl.done];
+  const cur = hist[pl.done];
   const step = pl.done < sol.steps.length ? sol.steps[pl.done] : null;
-  let q: Quat = QUAT_IDENTITY;
-  let sx = 1;
-  let marks: AxisMark[] = [];
-  if (step && step.m !== 'mirror') {
-    let full = quatFromMatrix(step.m);
-    if (full[0] < 0) full = [-full[0], -full[1], -full[2], -full[3]];
-    if (pl.p > 0) q = quatSlerp(QUAT_IDENTITY, full, easeInOut(pl.p));
-    const s = Math.sqrt(Math.max(0, 1 - full[0] * full[0]));
-    if (s > 1e-6) marks = [{ dir: [full[1] / s, full[2] / s, full[3] / s], angle: (2 * Math.acos(Math.min(1, full[0])) * 180) / Math.PI, label: step.axisLabel }];
-  } else if (step && pl.p > 0) sx = Math.cos(Math.PI * easeInOut(pl.p)) || 0.001;
-  const r = blocksRadius(sol.initial);
+  const fr = blockFrame(cur.cells, step?.op ?? null, pl.p, cur.colors);
+  const marks = step ? blockOpMarks(step.op, step.axisLabel) : [];
+  const r = Math.max(...hist.map((h) => blocksRadius(h.cells)));
   return (
     <div className="solution">
-      <BlocksSvg cells={cells} colors={sol.colors} size={size} q={q} sx={sx} view={Math.max(1.9, r * 1.08) + 1}>
+      <BlocksSvg cells={fr.cells} colors={fr.colors} size={size} q={fr.q} sx={fr.sx} view={Math.max(1.9, r * 1.08) + 1}>
         <AxisMarks marks={marks} radius={r + 0.2} />
       </BlocksSvg>
       {marks.length > 0 && <div className="muted small">빨간 선이 이번 단계에서 도는 축이고, 화살표가 도는 방향이에요.</div>}
+      {sol.steps.some((s) => isEditOp(s.op)) && <div className="muted small">블록을 더하는 단계는 초록, 빼는 단계는 빨강으로 보여줘요.</div>}
       {sol.note && <div className="muted small">{sol.note}</div>}
       <Controls pl={pl} total={sol.steps.length} labels={sol.steps.map((_, i) => `${i + 1}단계`)} describe={(i) => sol.steps[i].label} />
     </div>
