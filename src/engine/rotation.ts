@@ -92,14 +92,14 @@ export function describeOp(op: RotationOp): TextPart[] {
         }[op.dir],
       ];
     case 'face':
-      return [{ symbol: op.symbol }, ` 면을 정면에서 보고 ${dirText(op.dir)} ${op.angle}°`];
+      return [{ symbol: op.symbol }, ` 면 쪽에서 볼 때 ${dirText(op.dir)} ${op.angle}°`];
     case 'vertex': {
       const parts: TextPart[] = [];
       op.symbols.forEach((s, i) => {
         if (i > 0) parts.push('·');
         parts.push({ symbol: s });
       });
-      parts.push(` 면이 만나는 꼭짓점을 보고 ${dirText(op.dir)} ${op.angle}°`);
+      parts.push(` 면이 만나는 꼭짓점 쪽에서 볼 때 ${dirText(op.dir)} ${op.angle}°`);
       return parts;
     }
     case 'edge':

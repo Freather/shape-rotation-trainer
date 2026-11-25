@@ -1,7 +1,7 @@
 // 풀이 보기: 초기 → 각 단계 애니메이션 (SVG, 렌더러 없이)
 import { useMemo, type ReactNode } from 'react';
 import { CAMERA_DIR, getSolid } from '../engine/solids';
-import { QUAT_IDENTITY, deg, quatFromAxisAngle, quatFromTo, quatSlerp, rotateVec, sub, type Quat, type Vec3 } from '../engine/math';
+import { QUAT_IDENTITY, deg, normalize, quatFromAxisAngle, quatFromTo, quatSlerp, rotateVec, sub, type Quat, type Vec3 } from '../engine/math';
 import { describeOp, type RotationOp, type TextPart } from '../engine/rotation';
 import { resolveOp, stateHistory, transformVec, type Labeling, type SolidState } from '../engine/state';
 import { applyT, foldBounds, foldTransforms, rotateT } from '../engine/net';
@@ -45,36 +45,62 @@ function Controls({ pl, total, labels, describe }: { pl: ReturnType<typeof usePl
   );
 }
 
-/** 상태 s에서 op를 진행도 p만큼 적용한 그리기 함수 */
+/** 면·꼭짓점·모서리 기준 회전: 그 축을 내 쪽으로 돌려 놓고 돌려야 시계방향이 그대로 보인다 */
+const bodyAxisOp = (op: RotationOp | null) => !!op && (op.kind === 'face' || op.kind === 'vertex' || op.kind === 'edge');
+
+function bodyAxisCaption(op: RotationOp): TextPart[] {
+  if (op.kind === 'face') return [{ symbol: op.symbol }, ' 면을 내 쪽으로 돌려 놓고 봐요. 이렇게 보면 시계방향이 화면에서도 시계방향이에요.'];
+  if (op.kind === 'vertex') return ['그 꼭짓점을 내 쪽으로 돌려 놓고 봐요. 이렇게 보면 시계방향이 화면에서도 시계방향이에요.'];
+  return ['그 모서리를 내 쪽으로 돌려 놓고 봐요.'];
+}
+
+/**
+ * 상태 s에서 op를 진행도 p만큼 적용한 그리기 함수.
+ * 도형에 붙은 축이면 앞 30%는 축을 내 쪽으로 돌리고, 가운데 40%에 회전, 뒤 30%에 원래 시점으로 돌아온다.
+ */
 function animFns(s: SolidState, op: RotationOp | null, p: number, lab: Labeling) {
   let rq: Quat = QUAT_IDENTITY;
+  let vq: Quat = QUAT_IDENTITY;
   let sx = 1;
+  let tilted = false;
   if (op) {
     const r = resolveOp(s, op, lab);
-    if (r.kind === 'rotate') rq = quatFromAxisAngle(r.axis, deg(r.angle * easeInOut(p)));
+    if (r.kind === 'rotate' && bodyAxisOp(op)) {
+      const full = quatFromTo(normalize(r.axis), CAMERA_DIR);
+      const tilt = p < 0.3 ? easeInOut(p / 0.3) : p > 0.7 ? easeInOut((1 - p) / 0.3) : 1;
+      vq = quatSlerp(QUAT_IDENTITY, full, tilt);
+      const pr = p < 0.3 ? 0 : p > 0.7 ? 1 : easeInOut((p - 0.3) / 0.4);
+      rq = quatFromAxisAngle(r.axis, deg(r.angle * pr));
+      tilted = tilt > 0.5;
+    } else if (r.kind === 'rotate') rq = quatFromAxisAngle(r.axis, deg(r.angle * easeInOut(p)));
     else sx = Math.cos(Math.PI * easeInOut(p)) || 0.001;
   }
   const point = (_f: number, v: Vec3): Vec3 => {
     const w = rotateVec(rq, transformVec(s, v));
-    return [w[0] * sx, w[1], w[2]];
+    return rotateVec(vq, [w[0] * sx, w[1], w[2]]);
   };
-  return { point, vec: point };
+  return { point, vec: point, vq, tilted };
 }
 
 export function SolidSolution({ sol, size = 260 }: { sol: Extract<Solution, { kind: 'solid' }>; size?: number }) {
   const hist = useMemo(() => stateHistory(sol.initial, sol.ops, sol.labeling), [sol]);
-  const pl = usePlayer(sol.ops.length);
+  const pl = usePlayer(sol.ops.length, { stepMs: sol.ops.some(bodyAxisOp) ? 2600 : 1100 });
   const s = hist[pl.done];
   const op = pl.p > 0 && pl.done < sol.ops.length ? sol.ops[pl.done] : null;
-  const { point, vec } = animFns(s, op, pl.p, sol.labeling);
+  const { point, vec, vq, tilted } = animFns(s, op, pl.p, sol.labeling);
   const draws = drawsFromTransform(sol.solidId, sol.labeling, point, vec, sol.focusFace !== undefined ? [sol.focusFace] : []);
-  const marks = pl.done < sol.ops.length ? opMarks(hist[pl.done], sol.ops[pl.done], sol.labeling) : [];
+  const marks = (pl.done < sol.ops.length ? opMarks(hist[pl.done], sol.ops[pl.done], sol.labeling) : []).map((m) => ({ ...m, dir: rotateVec(vq, m.dir) }));
   return (
     <div className="solution">
       <FaceDrawsSvg draws={draws} size={size} view={2.9}>
         <AxisMarks marks={marks} />
       </FaceDrawsSvg>
       {marks.length > 0 && <div className="muted small">빨간 선이 이번 단계에서 도는 축이고, 화살표가 도는 방향이에요.</div>}
+      {op && tilted && (
+        <div className="tilt-note">
+          <Parts parts={bodyAxisCaption(op)} />
+        </div>
+      )}
       {sol.focusFace !== undefined && <div className="muted small">노란 면은 마지막에 정면(가장 크게 보이는 면)에 오는 면이에요. 이 면을 눈으로 따라가 보세요.</div>}
       <Controls pl={pl} total={sol.ops.length} labels={sol.labels} describe={(i) => describeOp(sol.ops[i])} />
     </div>
@@ -95,13 +121,14 @@ export function FoldSolution({ sol, size = 260 }: { sol: Extract<Solution, { kin
   // 단계: 0 = 접기, 1 = (보기 방향으로 돌리기), 이후 회전 명령들
   const rotOps: RotationOp[] = [...(toFinal ? [toFinal] : []), ...sol.ops];
   const labels = ['접기', ...(toFinal ? ['방향 맞추기'] : []), ...sol.labels];
-  const pl = usePlayer(1 + rotOps.length, { stepMs: 1400 });
+  const pl = usePlayer(1 + rotOps.length, { stepMs: rotOps.some(bodyAxisOp) ? 2600 : 1400 });
   const start: SolidState = { solidId: sol.solidId, q: QUAT_IDENTITY, mirrored: false };
   const hist = useMemo(() => stateHistory(start, rotOps, sol.labeling), [sol, toFinal]); // eslint-disable-line react-hooks/exhaustive-deps
   const align = quatFromTo(solid.faces[sol.root].normal, CAMERA_DIR);
 
   let point: (f: number, v: Vec3) => Vec3;
   let vec: (f: number, v: Vec3) => Vec3;
+  let foldTilt: RotationOp | null = null;
   if (pl.done === 0) {
     // 접는 중: t = 1 - p (처음엔 펼친 상태)
     const t = 1 - easeInOut(pl.p);
@@ -122,7 +149,9 @@ export function FoldSolution({ sol, size = 260 }: { sol: Extract<Solution, { kin
     const i = pl.done - 1;
     const s = hist[i];
     const op = pl.p > 0 && i < rotOps.length ? rotOps[i] : null;
-    ({ point, vec } = animFns(s, op, pl.p, sol.labeling));
+    const a = animFns(s, op, pl.p, sol.labeling);
+    ({ point, vec } = a);
+    if (op && a.tilted) foldTilt = op;
   }
   const draws = drawsFromTransform(sol.solidId, sol.labeling, point, vec, sol.highlight ?? []);
   const describe = (i: number): TextPart[] =>
@@ -130,6 +159,11 @@ export function FoldSolution({ sol, size = 260 }: { sol: Extract<Solution, { kin
   return (
     <div className="solution">
       <FaceDrawsSvg draws={draws} size={size} />
+      {foldTilt && (
+        <div className="tilt-note">
+          <Parts parts={bodyAxisCaption(foldTilt)} />
+        </div>
+      )}
       {sol.note ? <div className="muted small">{sol.note}</div> : sol.highlight && <div className="muted small">노란 두 면이 서로 맞은편이에요.</div>}
       <Controls pl={pl} total={1 + rotOps.length} labels={labels} describe={describe} />
     </div>
