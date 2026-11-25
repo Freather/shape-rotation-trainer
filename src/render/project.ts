@@ -25,6 +25,8 @@ export interface FaceDraw {
   highlight?: boolean;
   /** 0(어두움) ~ 1(밝음): 면 방향에 따른 음영 */
   shade: number;
+  /** 뒤쪽에 숨은 면 (비쳐 보이게 점선과 흐린 그림으로) */
+  hidden?: boolean;
 }
 
 const LIGHT = normalize([-0.35, 0.85, 0.45]);
@@ -48,24 +50,30 @@ export function symbolWorldSize(solidId: SolidId): number {
   return inradius * (solid.sides === 3 ? 1.45 : 1.6);
 }
 
-/** 정적 모습(Look) → 그리기 목록 */
-export function drawsFromLook(look: Look, highlightSlots: number[] = []): FaceDraw[] {
+/** 정적 모습(Look) → 그리기 목록. withHidden이면 뒤에 숨은 면도 (비쳐 보이게 그릴 용도로) 넣는다 */
+export function drawsFromLook(look: Look, highlightSlots: number[] = [], cam: Vec3 = CAMERA_DIR, withHidden = false): FaceDraw[] {
   const solid = getSolid(look.solidId);
   const size = symbolWorldSize(look.solidId);
+  const camR = normalize(cross([0, 1, 0], cam));
+  const camU = cross(cam, camR);
+  const projectPoint = (p: Vec3): P2 => [dot(p, camR), -dot(p, camU)];
+  const projectVec = projectPoint;
   const out: FaceDraw[] = [];
   for (const f of solid.faces) {
-    if (dot(f.normal, CAMERA_DIR) <= 1e-6) continue;
+    const hidden = dot(f.normal, cam) <= 1e-6;
+    if (hidden && !withHidden) continue;
     const sl = look.slots[f.id];
     const up = rotateAround(f.upRef, f.normal, (sl.rot * 2 * Math.PI) / solid.sides);
     const right = scale(cross(up, f.normal), sl.flip ? -1 : 1);
     out.push({
       key: f.id,
       pts: f.vertices.map((v) => projectPoint(solid.vertices[v])),
-      depth: dot(f.center, CAMERA_DIR),
+      depth: dot(f.center, cam),
       facing: true,
       symbol: sl.symbol,
       matrix: symbolMatrix(projectPoint(f.center), projectVec(right), projectVec(up), size),
       highlight: highlightSlots.includes(f.id),
+      hidden,
       shade: shadeOf(f.normal),
     });
   }

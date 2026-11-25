@@ -27,33 +27,62 @@ export function FaceDrawsSvg({
   onFaceClick?: (face: number) => void;
 }) {
   const color = useSettings((s) => !s.mono);
+  const seeThrough = draws.some((d) => d.hidden);
+  const ptsOf = (d: FaceDraw) => d.pts.map((p) => p.join(',')).join(' ');
+  /** 면 바탕 (안쪽 면이면 회색) */
+  const face = (d: FaceDraw, inner: boolean) => {
+    if (!d.facing) return inner ? <polygon key={`b${d.key}`} points={ptsOf(d)} fill="#cfccc6" stroke="#333" strokeWidth={0.03} strokeLinejoin="round" /> : null;
+    const fill = d.highlight ? '#ffd43b' : color ? getSymbol(d.symbol).color : grayFor(d.shade);
+    return (
+      <g key={`b${d.key}`} onClick={onFaceClick ? () => onFaceClick(d.key) : undefined} style={onFaceClick ? { cursor: 'pointer' } : undefined}>
+        <polygon points={ptsOf(d)} fill={fill} />
+        {color && !d.highlight && <polygon points={ptsOf(d)} fill="#000" opacity={(1 - d.shade) * 0.18} />}
+      </g>
+    );
+  };
+  /** 면 위 그림과 테두리 */
+  const top = (d: FaceDraw) => (
+    <g key={`t${d.key}`} style={{ pointerEvents: 'none' }}>
+      <g transform={`matrix(${d.matrix.join(' ')})`}>
+        <Glyph id={d.symbol} />
+      </g>
+      <polygon points={ptsOf(d)} fill="none" stroke="#111" strokeWidth={0.04} strokeLinejoin="round" />
+    </g>
+  );
   return (
     <svg width={size} height={size} viewBox={`${-view} ${-view} ${view * 2} ${view * 2}`} className="solid-svg">
-      {draws.map((d) => {
-        const pts = d.pts.map((p) => p.join(',')).join(' ');
-        if (!d.facing) {
-          return <polygon key={d.key} points={pts} fill="#cfccc6" stroke="#333" strokeWidth={0.03} strokeLinejoin="round" />;
-        }
-        const fill = d.highlight ? '#ffd43b' : color ? getSymbol(d.symbol).color : grayFor(d.shade);
-        return (
-          <g key={d.key} onClick={onFaceClick ? () => onFaceClick(d.key) : undefined} style={onFaceClick ? { cursor: 'pointer' } : undefined}>
-            <polygon points={pts} fill={fill} />
-            {color && !d.highlight && <polygon points={pts} fill="#000" opacity={(1 - d.shade) * 0.18} />}
-            <g transform={`matrix(${d.matrix.join(' ')})`}>
-              <Glyph id={d.symbol} />
-            </g>
-            <polygon points={pts} fill="none" stroke="#111" strokeWidth={0.04} strokeLinejoin="round" />
+      {seeThrough ? (
+        <>
+          {draws.map((d) => (d.hidden ? null : face(d, false)))}
+          {/* 뒤에 숨은 면: 비쳐 보이듯 흐린 그림과 점선 */}
+          {draws
+            .filter((d) => d.hidden)
+            .map((d) => (
+              <g key={`h${d.key}`}>
+                <g transform={`matrix(${d.matrix.join(' ')})`} opacity={0.3}>
+                  <Glyph id={d.symbol} />
+                </g>
+                <polygon points={ptsOf(d)} fill="none" stroke="#555" strokeWidth={0.028} strokeDasharray="0.09 0.07" strokeLinejoin="round" />
+              </g>
+            ))}
+          {draws.filter((d) => !d.hidden).map((d) => top(d))}
+        </>
+      ) : (
+        draws.map((d) => (
+          <g key={d.key}>
+            {face(d, true)}
+            {d.facing && top(d)}
           </g>
-        );
-      })}
+        ))
+      )}
       {children}
     </svg>
   );
 }
 
-export function SolidSvg({ look, size = 160, highlightSlots, marks }: { look: Look; size?: number; highlightSlots?: number[]; marks?: AxisMark[] }) {
+export function SolidSvg({ look, size = 160, highlightSlots, marks, seeThrough }: { look: Look; size?: number; highlightSlots?: number[]; marks?: AxisMark[]; seeThrough?: boolean }) {
   return (
-    <FaceDrawsSvg draws={drawsFromLook(look, highlightSlots)} size={marks?.length ? Math.round((size * MARK_VIEW) / VIEW) : size} view={marks?.length ? MARK_VIEW : VIEW}>
+    <FaceDrawsSvg draws={drawsFromLook(look, highlightSlots, undefined, seeThrough)} size={marks?.length ? Math.round((size * MARK_VIEW) / VIEW) : size} view={marks?.length ? MARK_VIEW : VIEW}>
       {marks?.length ? <AxisMarks marks={marks} /> : null}
     </FaceDrawsSvg>
   );

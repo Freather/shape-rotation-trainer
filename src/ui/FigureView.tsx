@@ -12,13 +12,13 @@ import { BlocksSvg, GridSvg, blocksRadius } from '../render/BlocksSvg';
 import { VIEW_AXIS } from '../engine/rotation';
 import { OctaPair } from '../render/OctaSvg';
 
-export function FigureView({ fig, size = 150, marks }: { fig: Figure; size?: number; marks?: AxisMark[] }) {
+export function FigureView({ fig, size = 150, marks, seeThrough }: { fig: Figure; size?: number; marks?: AxisMark[]; seeThrough?: boolean }) {
   const mono = useSettings((s) => s.mono);
   switch (fig.kind) {
     case 'solid':
       return (
         <figure className="fig">
-          <SolidSvg look={fig.look} size={size} marks={marks} />
+          <SolidSvg look={fig.look} size={size} marks={marks} seeThrough={seeThrough} />
           {fig.caption && <figcaption>{fig.caption}</figcaption>}
         </figure>
       );
