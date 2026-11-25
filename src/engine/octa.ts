@@ -23,7 +23,8 @@ export type OctaState = OctaFace[];
 export const OCTA_NORMALS: V3[] = [];
 for (const sy of [1, -1]) for (const sz of [1, -1]) for (const sx of [1, -1]) OCTA_NORMALS.push([sx, sy, sz]);
 
-export const OCTA_COLORS = ['#ffffff', '#f7d774', '#93c5ea'];
+/** 시험지는 흑백: 흰 면과 검은 면 */
+export const OCTA_COLORS = ['#ffffff', '#1d1d1f'];
 
 export const faceIndex = (n: V3): number => OCTA_NORMALS.findIndex((m) => m[0] === n[0] && m[1] === n[1] && m[2] === n[2]);
 const mulV = (m: Mat3, v: V3): V3 => [0, 1, 2].map((i) => m[i][0] * v[0] + m[i][1] * v[1] + m[i][2] * v[2]) as V3;
@@ -47,7 +48,9 @@ export type OctaOp =
    * 그림 맞바꾸기: 한쪽 4면의 그림을 짝 면의 그림과 바꿈 (색은 제자리).
    * near = 모서리 건너 바로 맞붙은 면, opposite = 도형 건너 정반대편 면 (그림은 가로 모서리 방향 축으로 반 바퀴)
    */
-  | { kind: 'swapPics'; view: View; target: SwapTarget };
+  | { kind: 'swapPics'; view: View; target: SwapTarget }
+  /** 색 반전: 한쪽 4면만, 또는 모든 면 (그림은 그대로) */
+  | { kind: 'invert'; view: View | 'all' };
 
 export type SwapTarget = 'near' | 'opposite';
 
@@ -70,6 +73,8 @@ export function describeOctaOp(op: OctaOp): TextPart[] {
           ? `${SIDE_NAME[op.view]} 4면의 그림 맞바꾸기: 바로 맞붙은 ${OTHER_SIDE[op.view]} 면과`
           : `${SIDE_NAME[op.view]} 4면의 그림 맞바꾸기: 정반대편(마주 보는) 면과`,
       ];
+    case 'invert':
+      return [op.view === 'all' ? '모든 면의 색 반전 (흰 면 ↔ 검은 면)' : `${SIDE_NAME[op.view]} 4면만 색 반전 (흰 면 ↔ 검은 면)`];
   }
 }
 export const describeOctaOpText = (op: OctaOp) => describeOctaOp(op).join('');
@@ -77,11 +82,12 @@ export const describeOctaOpText = (op: OctaOp) => describeOctaOp(op).join('');
 /** 이 연산에서 움직이는 면인지 */
 export function opTouches(op: OctaOp, n: V3): boolean {
   if (op.kind === 'turn') return true;
+  if (op.kind === 'invert') return op.view === 'all' || dotI(n, VIEW_AXIS[op.view] as unknown as V3) > 0;
   return dotI(n, VIEW_AXIS[op.view] as unknown as V3) > 0 || op.kind === 'swapPics';
 }
 
 /** 규칙이 가리키는 쪽 4면인지 (그림에 점선 표시용) */
-export const onSide = (op: OctaOp, n: V3) => op.kind !== 'turn' && dotI(n, VIEW_AXIS[op.view] as unknown as V3) > 0;
+export const onSide = (op: OctaOp, n: V3) => op.kind !== 'turn' && op.view !== 'all' && dotI(n, VIEW_AXIS[op.view] as unknown as V3) > 0;
 
 /** 정반대편 맞바꾸기 축: 쪽 방향 a와 면 n에 모두 수직 (그 면의 가로 모서리 방향) */
 export function oppositeAxis(view: View, n: V3): V3 {
@@ -125,6 +131,9 @@ export function applyOctaOp(st: OctaState, op: OctaOp): OctaState {
         out[j] = { color: out[j].color, pic: movePic(f.pic, m) };
         break;
       }
+      case 'invert':
+        if (opTouches(op, n)) out[i] = { color: 1 - f.color, pic: out[i].pic };
+        break;
     }
   });
   return out;
@@ -136,8 +145,8 @@ export const octaKey = (st: OctaState): string =>
   st.map((f) => `${f.color}${f.pic ? `${f.pic.symbol}@${f.pic.up.join(',')}` : ''}`).join('|');
 
 export function randomOcta(rng: Rng, picCount = 5): OctaState {
-  // 색 세 가지가 고루 (2~3면씩)
-  const colors = rng.shuffle([0, 0, 1, 1, 1, 2, 2, 2]);
+  // 흰 면 4개, 검은 면 4개
+  const colors = rng.shuffle([0, 0, 0, 0, 1, 1, 1, 1]);
   const syms = rng.shuffle(arrangeSymbols(rng.shuffle(RADIAL_SYMBOLS), (p) => rng.chance(p)).slice(0, picCount));
   // 위쪽과 아래쪽에 그림이 고루 가도록
   const upper = rng.shuffle([0, 1, 2, 3]);
@@ -164,11 +173,11 @@ export interface OctaLevelConfig {
 }
 
 export const OCTA_LEVELS: Record<number, OctaLevelConfig> = {
-  1: { kinds: ['turn', 'layer'], views: ['top'], ruleCount: 3, steps: [1, 2], picCount: 4, opposite: false },
-  2: { kinds: ['turn', 'layer', 'movePics'], views: ['top', 'right'], ruleCount: 4, steps: [2, 2], picCount: 4, opposite: false },
-  3: { kinds: ['turn', 'layer', 'movePics', 'swapPics'], views: ['top', 'right', 'front'], ruleCount: 4, steps: [2, 3], picCount: 5, opposite: false },
-  4: { kinds: ['turn', 'layer', 'movePics', 'swapPics'], views: ['top', 'right', 'front'], ruleCount: 5, steps: [3, 3], picCount: 5, opposite: true },
-  5: { kinds: ['turn', 'layer', 'movePics', 'swapPics'], views: ['top', 'right', 'front'], ruleCount: 5, steps: [3, 4], picCount: 6, opposite: true },
+  1: { kinds: ['turn', 'layer', 'invert'], views: ['top'], ruleCount: 3, steps: [1, 2], picCount: 4, opposite: false },
+  2: { kinds: ['turn', 'layer', 'movePics', 'invert'], views: ['top', 'right'], ruleCount: 4, steps: [2, 2], picCount: 4, opposite: false },
+  3: { kinds: ['turn', 'layer', 'movePics', 'swapPics', 'invert'], views: ['top', 'right', 'front'], ruleCount: 4, steps: [2, 3], picCount: 5, opposite: false },
+  4: { kinds: ['turn', 'layer', 'movePics', 'swapPics', 'invert'], views: ['top', 'right', 'front'], ruleCount: 5, steps: [3, 3], picCount: 5, opposite: true },
+  5: { kinds: ['turn', 'layer', 'movePics', 'swapPics', 'invert'], views: ['top', 'right', 'front'], ruleCount: 5, steps: [3, 4], picCount: 6, opposite: true },
 };
 
 export function octaOpCandidates(kinds: OctaOp['kind'][], views: View[], opposite = false): OctaOp[] {
@@ -179,7 +188,9 @@ export function octaOpCandidates(kinds: OctaOp['kind'][], views: View[], opposit
       out.push({ kind: 'swapPics', view, target: 'near' });
       if (opposite) out.push({ kind: 'swapPics', view, target: 'opposite' });
     }
+    if (kinds.includes('invert')) out.push({ kind: 'invert', view });
   }
+  if (kinds.includes('invert')) out.push({ kind: 'invert', view: 'all' });
   return out;
 }
 
@@ -197,4 +208,4 @@ export const octaEffect = (op: OctaOp) => PROBES.map((p) => octaKey(applyOctaOp(
 export const sameOctaEffect = (a: OctaOp, b: OctaOp) => octaEffect(a) === octaEffect(b);
 
 /** 방향을 반대로 */
-export const flipOctaDir = (op: OctaOp): OctaOp | null => (op.kind === 'swapPics' ? null : { ...op, dir: op.dir === 'cw' ? 'ccw' : 'cw' });
+export const flipOctaDir = (op: OctaOp): OctaOp | null => (op.kind === 'swapPics' || op.kind === 'invert' ? null : { ...op, dir: op.dir === 'cw' ? 'ccw' : 'cw' });

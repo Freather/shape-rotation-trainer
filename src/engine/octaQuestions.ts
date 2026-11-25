@@ -72,9 +72,14 @@ export function genOctaRule(p: GenParams, set: OctaRuleSet): Question {
   if (op.kind === 'turn') cands.push({ item: swapAt({ kind: 'layer', view: op.view, dir: op.dir }), tag: 'wrongRing' });
   // 바로 맞붙은 면 ↔ 정반대편 면
   if (op.kind === 'swapPics') cands.push({ item: swapAt({ ...op, target: op.target === 'near' ? 'opposite' : 'near' }), tag: 'nearVsOpposite' });
+  // 색 반전 빼먹기, 다른 쪽에 반전
+  if (op.kind === 'invert') {
+    cands.push({ item: run(ops.filter((_, k) => k !== i)), tag: 'missInvert' });
+    cands.push({ item: swapAt({ kind: 'invert', view: op.view === 'all' ? rng.pick(['top', 'right', 'front'] as View[]) : 'all' }), tag: 'wrongRing' });
+  }
   const rev = flipOctaDir(op);
   if (rev) cands.push({ item: swapAt(rev), tag: 'reverse' });
-  if (op.kind !== 'turn') {
+  if (op.kind !== 'turn' && !(op.kind === 'invert' && op.view === 'all')) {
     const other = (['top', 'right', 'front'] as View[]).filter((v) => v !== op.view);
     cands.push({ item: swapAt({ ...op, view: rng.pick(other) } as OctaOp), tag: 'wrongRing' });
   }

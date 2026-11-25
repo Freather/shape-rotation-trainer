@@ -17,7 +17,7 @@ import { BlocksSvg, blocksRadius } from './BlocksSvg';
 import { applyBlockOp, isEditOp, type Blocks } from '../engine/blocks';
 import { blockFrame, blockOpMarks, colorsAfter } from './blockAnim';
 import { FigureView } from '../ui/FigureView';
-import { OctaPair } from './OctaSvg';
+import { OctaView } from './OctaSvg';
 import { applyOctaOp, describeOctaOp, type OctaState } from '../engine/octa';
 
 function Controls({ pl, total, labels, describe }: { pl: ReturnType<typeof usePlayer>; total: number; labels: string[]; describe: (i: number) => TextPart[] }) {
@@ -223,7 +223,7 @@ export function OctaSolution({ sol, size = 260 }: { sol: Extract<Solution, { kin
   const anim = step && pl.p > 0 ? { op: step.op, p: easeInOut(pl.p) } : null;
   return (
     <div className="solution">
-      <OctaPair state={hist[pl.done]} anim={anim} size={Math.round(size * 0.62)} mark={step?.op} />
+      <OctaView state={hist[pl.done]} anim={anim} size={size} mark={step?.op} />
       <div className="muted small">빨간 점선이 이번 단계에서 움직이는 4면이에요. 4면 돌리기는 면이 색째 돌고, 그림 옮기기는 색은 그대로 두고 그림만 옆 면으로 건너가요.</div>
       <Controls pl={pl} total={sol.steps.length} labels={sol.steps.map((s) => s.label)} describe={(i) => describeOctaOp(sol.steps[i].op)} />
     </div>

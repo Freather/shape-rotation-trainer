@@ -46,6 +46,17 @@ describe('그림 정팔면체 엔진', () => {
     expect(sameOctaEffect(op, { kind: 'swapPics', view: 'top', target: 'near' })).toBe(false);
   });
 
+  it('색 반전: 한쪽 4면만 흰↔검, 그림은 그대로, 두 번 하면 제자리', () => {
+    const op: OctaOp = { kind: 'invert', view: 'right' };
+    const a = applyOctaOp(st, op);
+    OCTA_NORMALS.forEach((n, i) => {
+      expect(a[i].pic).toEqual(st[i].pic);
+      expect(a[i].color).toBe(n[0] > 0 ? 1 - st[i].color : st[i].color);
+    });
+    expect(octaKey(applyOctaOp(a, op))).toBe(octaKey(st));
+    expect(applyOctaOp(st, { kind: 'invert', view: 'all' }).every((f, i) => f.color === 1 - st[i].color)).toBe(true);
+  });
+
   it('전체 돌리기 = 같은 축의 양쪽 4면을 따로 돌린 것', () => {
     const whole = applyOctaOp(st, { kind: 'turn', view: 'top', dir: 'cw' });
     const top = applyOctaOp(st, { kind: 'layer', view: 'top', dir: 'cw' });

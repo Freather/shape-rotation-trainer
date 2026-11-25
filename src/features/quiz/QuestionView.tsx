@@ -111,7 +111,7 @@ export function QuestionView({
           ))}
         </ol>
       )}
-      <div className={textOptions ? 'options options-text' : q.options.some((o) => o.figure.kind === 'octa') ? 'options options-wide' : 'options'}>
+      <div className={textOptions ? 'options options-text' : 'options'}>
         {q.options.map((o, i) => {
           const cls = ['option'];
           if (!revealed && selected === i) cls.push('selected');
@@ -120,7 +120,7 @@ export function QuestionView({
           return (
             <button key={i} className={cls.join(' ')} onClick={onSelect ? () => onSelect(i) : undefined} disabled={!onSelect}>
               <span className="opt-mark">{optionMark(i)}</span>
-              <FigureView fig={o.figure} size={o.figure.kind === 'octa' || o.figure.kind === 'solid' ? 150 : q.options.length > 2 ? 120 : 100} seeThrough={o.figure.kind === 'solid'} />
+              <FigureView fig={o.figure} size={o.figure.kind === 'solid' || o.figure.kind === 'octa' ? 150 : q.options.length > 2 ? 120 : 100} seeThrough={o.figure.kind === 'solid'} />
               {revealed && (
                 <span className="opt-labels">
                   {selected === i && <span className="label mine">내 답</span>}

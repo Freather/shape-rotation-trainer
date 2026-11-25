@@ -10,7 +10,7 @@ import { Parts } from './Parts';
 import { AxisMarks, VIEW_LABEL, type AxisMark } from '../render/AxisMarks';
 import { BlocksSvg, GridSvg, blocksRadius } from '../render/BlocksSvg';
 import { VIEW_AXIS } from '../engine/rotation';
-import { OctaPair } from '../render/OctaSvg';
+import { OctaView } from '../render/OctaSvg';
 
 export function FigureView({ fig, size = 150, marks, seeThrough }: { fig: Figure; size?: number; marks?: AxisMark[]; seeThrough?: boolean }) {
   const mono = useSettings((s) => s.mono);
@@ -88,7 +88,7 @@ export function FigureView({ fig, size = 150, marks, seeThrough }: { fig: Figure
     case 'octa':
       return (
         <figure className="fig">
-          <OctaPair state={fig.state} size={Math.round(size * 0.7)} captions={!!fig.caption || size >= 200} />
+          <OctaView state={fig.state} size={size} />
           {fig.caption && <figcaption>{fig.caption}</figcaption>}
         </figure>
       );

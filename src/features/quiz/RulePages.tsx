@@ -15,7 +15,7 @@ import { Parts, RuleBadge } from '../../ui/Parts';
 import { SOLID_NAMES } from '../../engine/solids';
 import { FAMILY_NAMES } from '../../engine/radial/model';
 import { applyOctaOp, describeOctaOp, type OctaOp } from '../../engine/octa';
-import { OctaPair } from '../../render/OctaSvg';
+import { OctaView } from '../../render/OctaSvg';
 import { OctaSolution } from '../../render/SolutionPlayer';
 
 export function RuleCard({ set, index }: { set: RuleSet; index: number }) {
@@ -100,9 +100,9 @@ export function RuleCard({ set, index }: { set: RuleSet; index: number }) {
           </div>
         ) : (
           <div className="before-after">
-            <OctaPair state={set.example} size={96} captions={false} mark={op} />
+            <OctaView state={set.example} size={160} mark={op} />
             <span className="arrow">→</span>
-            <OctaPair state={applyOctaOp(set.example, op)} size={96} captions={false} />
+            <OctaView state={applyOctaOp(set.example, op)} size={160} />
           </div>
         )}
       </div>

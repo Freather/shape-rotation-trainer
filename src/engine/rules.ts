@@ -339,11 +339,13 @@ export function generateOctaRuleSet(level: number, seed: number): OctaRuleSet {
     if (effects.has(e) || ops.length >= cfg.ruleCount) return;
     // 그림 맞바꾸기는 세트에 하나만 (맞붙은 면이든 정반대편이든)
     if (o.kind === 'swapPics' && ops.some((x) => x.kind === 'swapPics')) return;
+    // 색 반전도 세트에 하나만
+    if (o.kind === 'invert' && ops.some((x) => x.kind === 'invert')) return;
     effects.add(e);
     ops.push(o);
   };
   // 종류마다 하나씩 먼저 (한쪽 4면 돌리기와 그림 옮기기가 꼭 들어가게)
-  for (const k of ['layer', 'movePics', 'swapPics', 'turn'] as const) {
+  for (const k of ['layer', 'movePics', 'swapPics', 'invert', 'turn'] as const) {
     const o = all.find((x) => x.kind === k);
     if (o) add(o);
   }

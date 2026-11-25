@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react';
 import { applyOctaOp, describeOctaOp, octaOpCandidates, type OctaOp, type OctaState } from '../../engine/octa';
 import type { Rule } from '../../engine/rules';
-import { OctaPair } from '../../render/OctaSvg';
+import { OctaView } from '../../render/OctaSvg';
 import { easeInOut } from '../../render/usePlayer';
 import { Parts, RuleBadge } from '../../ui/Parts';
 
@@ -41,7 +41,7 @@ export function OctaScratch({ state: start, rules }: { state: OctaState; rules?:
   return (
     <div className="scratch">
       <div className="scratch-canvas">
-        <OctaPair state={state} anim={anim} size={150} />
+        <OctaView state={state} anim={anim} size={250} />
       </div>
       <div className="field-label">{rules ? '규칙 적용' : '버튼으로 바꾸기'}</div>
       <div className="btn-col">

@@ -264,11 +264,8 @@ input[type='time'] { border: 1px solid var(--line); border-radius: var(--r); pad
 .tips-toggle > summary::-webkit-details-marker { display: none; }
 .tips-toggle[open] > summary { background: #16181b; color: #fff; border-color: #16181b; }
 
-.octa-pair { display: flex; gap: 4px; justify-content: center; align-items: flex-start; }
-.octa-pair .fig { margin: 0; }
 .btn-col { display: flex; flex-direction: column; gap: 6px; margin: 8px 0; }
 .btn-col .btn-left { text-align: left; padding: 6px 9px; }
 
 .tilt-note { background: #fff4e6; border: 1px solid #ffd8a8; border-radius: 6px; padding: 6px 9px; margin: 6px 0; font-size: 0.92em; }
 
-.options-wide { grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); }
