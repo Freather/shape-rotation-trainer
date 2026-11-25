@@ -224,7 +224,7 @@ export function OctaSolution({ sol, size = 260 }: { sol: Extract<Solution, { kin
   return (
     <div className="solution">
       <OctaView state={hist[pl.done]} anim={anim} size={size} mark={step?.op} />
-      <div className="muted small">빨간 점선이 이번 단계에서 움직이는 4면이에요. 4면 돌리기는 면이 색째 돌고, 그림 옮기기는 색은 그대로 두고 그림만 옆 면으로 건너가요.</div>
+      <div className="muted small">빨간 점선이 이번 단계에서 움직이는 4면이에요. 색 반전은 그 4면 그림의 검은색과 흰색만 바꿔요.</div>
       <Controls pl={pl} total={sol.steps.length} labels={sol.steps.map((s) => s.label)} describe={(i) => describeOctaOp(sol.steps[i].op)} />
     </div>
   );

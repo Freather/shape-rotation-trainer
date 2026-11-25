@@ -17,13 +17,6 @@ describe('그림 정팔면체 엔진', () => {
     expect(octaKey(a)).not.toBe(octaKey(st));
   });
 
-  it('그림 옮기기는 색이 제자리, 4면 돌리기와 효과가 다름', () => {
-    const op: OctaOp = { kind: 'movePics', view: 'right', dir: 'ccw' };
-    const a = applyOctaOp(st, op);
-    a.forEach((f, i) => expect(f.color).toBe(st[i].color));
-    expect(sameOctaEffect(op, { kind: 'layer', view: 'right', dir: 'ccw' })).toBe(false);
-  });
-
   it('그림 맞바꾸기를 두 번 하면 제자리, 위 그림이 바로 아래로', () => {
     const op: OctaOp = { kind: 'swapPics', view: 'top', target: 'near' };
     const a = applyOctaOp(st, op);
@@ -37,24 +30,25 @@ describe('그림 정팔면체 엔진', () => {
     const op: OctaOp = { kind: 'swapPics', view: 'top', target: 'opposite' };
     const a = applyOctaOp(st, op);
     expect(octaKey(applyOctaOp(a, op))).toBe(octaKey(st));
-    a.forEach((f, i) => expect(f.color).toBe(st[i].color));
     const idx = (x: number, y: number, z: number) => OCTA_NORMALS.findIndex((n) => n[0] === x && n[1] === y && n[2] === z);
     const s2 = st.map((f) => ({ ...f }));
-    s2[idx(1, 1, 1)] = { color: 0, pic: { symbol: 'arrow', up: [-1, 2, -1] } };
+    s2[idx(1, 1, 1)] = { pic: { symbol: 'arrow', up: [-1, 2, -1], white: true } };
     const b = applyOctaOp(s2, op);
-    expect(b[idx(-1, -1, -1)].pic).toEqual({ symbol: 'arrow', up: [1, -2, 1] });
+    expect(b[idx(-1, -1, -1)].pic).toEqual({ symbol: 'arrow', up: [1, -2, 1], white: true });
     expect(sameOctaEffect(op, { kind: 'swapPics', view: 'top', target: 'near' })).toBe(false);
   });
 
-  it('색 반전: 한쪽 4면만 흰↔검, 그림은 그대로, 두 번 하면 제자리', () => {
+  it('그림 색 반전: 한쪽 4면 그림만 검↔흰, 위치·방향은 그대로, 두 번 하면 제자리', () => {
     const op: OctaOp = { kind: 'invert', view: 'right' };
     const a = applyOctaOp(st, op);
     OCTA_NORMALS.forEach((n, i) => {
-      expect(a[i].pic).toEqual(st[i].pic);
-      expect(a[i].color).toBe(n[0] > 0 ? 1 - st[i].color : st[i].color);
+      if (!st[i].pic) return expect(a[i].pic).toBeNull();
+      expect(a[i].pic!.symbol).toBe(st[i].pic!.symbol);
+      expect(a[i].pic!.up).toEqual(st[i].pic!.up);
+      expect(a[i].pic!.white).toBe(n[0] > 0 ? !st[i].pic!.white : st[i].pic!.white);
     });
     expect(octaKey(applyOctaOp(a, op))).toBe(octaKey(st));
-    expect(applyOctaOp(st, { kind: 'invert', view: 'all' }).every((f, i) => f.color === 1 - st[i].color)).toBe(true);
+    expect(applyOctaOp(st, { kind: 'invert', view: 'all' }).every((f, i) => !f.pic || f.pic.white !== st[i].pic!.white)).toBe(true);
   });
 
   it('전체 돌리기 = 같은 축의 양쪽 4면을 따로 돌린 것', () => {
@@ -70,7 +64,8 @@ describe('그림 정팔면체 문제', () => {
       for (const lv of [1, 2, 3, 4, 5]) {
         const set = generateOctaRuleSet(lv, seed);
         for (const a of set.rules) for (const b of set.rules) if (a !== b) expect(sameOctaEffect(a.op, b.op)).toBe(false);
-        if (lv >= 2) expect(set.rules.some((r) => r.op.kind === 'movePics')).toBe(true);
+        expect(set.rules.some((r) => r.op.kind === 'layer')).toBe(true);
+        expect(set.rules.filter((r) => r.op.kind === 'invert').length).toBeLessThanOrEqual(1);
         expect(set.rules.filter((r) => r.op.kind === 'swapPics').length).toBeLessThanOrEqual(1);
       }
   });

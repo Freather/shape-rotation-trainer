@@ -30,7 +30,7 @@ function nudgePic(st: OctaState, k: number): OctaState | null {
   const vs = faceVertices(n).map((v) => [3 * v[0] - n[0], 3 * v[1] - n[1], 3 * v[2] - n[2]] as [number, number, number]);
   const cur = vs.findIndex((u) => u.every((x, j) => x === pic.up[j]));
   const out = st.map((f) => ({ ...f }));
-  out[i] = { ...st[i], pic: { symbol: pic.symbol, up: vs[(cur + 1 + (k % 2)) % 3] } };
+  out[i] = { pic: { ...pic, up: vs[(cur + 1 + (k % 2)) % 3] } };
   return out;
 }
 
@@ -64,11 +64,8 @@ export function genOctaRule(p: GenParams, set: OctaRuleSet): Question {
     o[i] = alt;
     return run(o);
   };
-  // 4면 돌리기 ↔ 그림만 옮기기
-  if (op.kind === 'layer') cands.push({ item: swapAt({ kind: 'movePics', view: op.view, dir: op.dir }), tag: 'layerVsPic' });
-  if (op.kind === 'movePics') cands.push({ item: swapAt({ kind: 'layer', view: op.view, dir: op.dir }), tag: 'layerVsPic' });
   // 4면만 ↔ 전체
-  if (op.kind === 'layer' || op.kind === 'movePics') cands.push({ item: swapAt({ kind: 'turn', view: op.view, dir: op.dir }), tag: 'wrongRing' });
+  if (op.kind === 'layer') cands.push({ item: swapAt({ kind: 'turn', view: op.view, dir: op.dir }), tag: 'wrongRing' });
   if (op.kind === 'turn') cands.push({ item: swapAt({ kind: 'layer', view: op.view, dir: op.dir }), tag: 'wrongRing' });
   // 바로 맞붙은 면 ↔ 정반대편 면
   if (op.kind === 'swapPics') cands.push({ item: swapAt({ ...op, target: op.target === 'near' ? 'opposite' : 'near' }), tag: 'nearVsOpposite' });

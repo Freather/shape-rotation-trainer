@@ -6,7 +6,7 @@ import { OctaView } from '../../render/OctaSvg';
 import { easeInOut } from '../../render/usePlayer';
 import { Parts, RuleBadge } from '../../ui/Parts';
 
-const FREE_OPS = octaOpCandidates(['turn', 'layer', 'movePics', 'swapPics'], ['top', 'right', 'front'], true);
+const FREE_OPS = octaOpCandidates(['turn', 'layer', 'swapPics', 'invert'], ['top', 'right', 'front'], true);
 
 export function OctaScratch({ state: start, rules }: { state: OctaState; rules?: Rule<OctaOp>[] }) {
   const [state, setState] = useState(start);

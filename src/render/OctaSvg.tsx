@@ -1,8 +1,9 @@
-// 그림 정팔면체 그리기: 정면에서 조금 위로 본 한 장. 면이 반투명해서 뒤쪽 면과 그림이 흐리게 비쳐 보인다.
+// 그림 정팔면체 그리기: 정면에서 조금 위로 본 한 장. 면은 모두 흰색이고 반투명해서 뒤쪽 그림이 흐리게 비쳐 보인다.
+// 그림은 검은 그림 또는 흰 그림(검은 테두리).
 // 안 보이는 모서리는 점선. 뒤쪽 그림은 투명한 도형을 들여다본 모습이라 좌우가 뒤집혀 보인다.
 // anim이 있으면 그 연산이 p(0~1)만큼 진행된 중간 모습을 그린다.
 import type { ReactNode } from 'react';
-import { OCTA_COLORS, OCTA_NORMALS, faceVertices, onSide, opTouches, oppositeAxis, swapAxis, type OctaOp, type OctaState } from '../engine/octa';
+import { OCTA_NORMALS, faceVertices, onSide, opTouches, oppositeAxis, swapAxis, type OctaOp, type OctaState } from '../engine/octa';
 import { VIEW_AXIS, signedAngle } from '../engine/rotation';
 import { cross, deg, dot, normalize, quatFromAxisAngle, rotateVec, scale, type Quat, type Vec3 } from '../engine/math';
 import { symbolMatrix, symbolWorldSize, type P2 } from './project';
@@ -28,7 +29,7 @@ function partial(op: OctaOp | null, p: number, n: [number, number, number]): { f
     return { face: null, pic: quatFromAxisAngle(normalize(b as unknown as Vec3), deg(180 * p)) };
   }
   const q = quatFromAxisAngle(VIEW_AXIS[op.view], deg(signedAngle(op.dir, 90) * p));
-  return op.kind === 'movePics' ? { face: null, pic: q } : { face: q, pic: q };
+  return { face: q, pic: q };
 }
 
 export function OctaView({ state, size = 160, anim, mark }: { state: OctaState; size?: number; anim?: { op: OctaOp; p: number } | null; mark?: OctaOp | null }) {
@@ -47,14 +48,13 @@ export function OctaView({ state, size = 160, anim, mark }: { state: OctaState; 
     const rn = rf(n);
     const f0 = state[i];
     const flipping = anim && anim.op.kind === 'invert' && anim.p >= 0.5 && opTouches(anim.op, n0);
-    const f = flipping ? { ...f0, color: 1 - f0.color } : f0;
+    const f = flipping && f0.pic ? { pic: { ...f0.pic, white: !f0.pic.white } } : f0;
     const corners = faceVertices(n0).map((v) => rf(scale(v as unknown as Vec3, R)));
     const center = rf(scale(n0 as unknown as Vec3, R / 3));
     const pts = ptsStr(corners.map(proj));
     const marked = !!mark && onSide(mark, n0);
     const front = dot(rn, CAM) > 1e-3;
     const depth = dot(center, CAM);
-    const black = f.color === 1;
     if (front) {
       const shade = 0.5 + 0.5 * dot(rn, LIGHT);
       // 반투명: 뒤쪽 면과 그림이 비쳐 보이게
@@ -62,7 +62,7 @@ export function OctaView({ state, size = 160, anim, mark }: { state: OctaState; 
         depth,
         el: (
           <g key={`f${i}`}>
-            <polygon points={pts} fill={OCTA_COLORS[f.color]} fillOpacity={black ? 0.82 : 0.7} />
+            <polygon points={pts} fill="#ffffff" fillOpacity={0.7} />
             <polygon points={pts} fill="#000" opacity={(1 - shade) * 0.15} />
           </g>
         ),
@@ -74,7 +74,7 @@ export function OctaView({ state, size = 160, anim, mark }: { state: OctaState; 
         </g>,
       );
     } else {
-      backFills.push({ depth, el: <polygon key={`b${i}`} points={pts} fill={OCTA_COLORS[f.color]} /> });
+      backFills.push({ depth, el: <polygon key={`b${i}`} points={pts} fill="#ffffff" /> });
       hiddenEdges.push(
         <polygon
           key={`h${i}`}
@@ -95,11 +95,10 @@ export function OctaView({ state, size = 160, anim, mark }: { state: OctaState; 
       const r = cross(u, pn);
       const visible = dot(pn, CAM) > 1e-3;
       const m = symbolMatrix(proj(c), proj(r), proj(u), visible ? glyphSize : glyphSize * 0.8);
-      // 옮겨 가는 중인 그림은 어느 면 위에서도 보이게 흰 테두리
-      const color = pq ? '#111' : black ? '#fff' : '#111';
+      // 흰 그림은 흰 바탕 + 검은 테두리
       const el = (
         <g key={`p${i}`} transform={`matrix(${m.join(' ')})`}>
-          <Glyph id={f.pic.symbol} color={color} halo={pq ? '#fff' : undefined} />
+          <Glyph id={f.pic.symbol} color={f.pic.white ? '#fff' : '#111'} halo={f.pic.white ? '#111' : undefined} />
         </g>
       );
       (visible ? frontPics : backPics).push({ depth: dot(c, CAM), el });
