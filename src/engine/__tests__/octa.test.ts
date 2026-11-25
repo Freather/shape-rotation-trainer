@@ -51,6 +51,19 @@ describe('그림 정팔면체 엔진', () => {
     expect(applyOctaOp(st, { kind: 'invert', view: 'all' }).every((f, i) => !f.pic || f.pic.white !== st[i].pic!.white)).toBe(true);
   });
 
+  it('아래쪽 4면 시계방향 + 위쪽 4면 반시계방향 = 위에서 볼 때 전체 반시계 (아래에서 본 시계는 위에서 본 반시계)', () => {
+    const a = applyOctaOps(st, [
+      { kind: 'layer', view: 'bottom', dir: 'cw' },
+      { kind: 'layer', view: 'top', dir: 'ccw' },
+    ]);
+    expect(octaKey(a)).toBe(octaKey(applyOctaOp(st, { kind: 'turn', view: 'top', dir: 'ccw' })));
+    const b = applyOctaOps(st, [
+      { kind: 'layer', view: 'left', dir: 'cw' },
+      { kind: 'layer', view: 'right', dir: 'ccw' },
+    ]);
+    expect(octaKey(b)).toBe(octaKey(applyOctaOp(st, { kind: 'turn', view: 'right', dir: 'ccw' })));
+  });
+
   it('전체 돌리기 = 같은 축의 양쪽 4면을 따로 돌린 것', () => {
     const whole = applyOctaOp(st, { kind: 'turn', view: 'top', dir: 'cw' });
     const top = applyOctaOp(st, { kind: 'layer', view: 'top', dir: 'cw' });

@@ -3,8 +3,8 @@
 // 안 보이는 모서리는 점선. 뒤쪽 그림은 투명한 도형을 들여다본 모습이라 좌우가 뒤집혀 보인다.
 // anim이 있으면 그 연산이 p(0~1)만큼 진행된 중간 모습을 그린다.
 import type { ReactNode } from 'react';
-import { OCTA_NORMALS, faceVertices, onSide, opTouches, oppositeAxis, swapAxis, type OctaOp, type OctaState } from '../engine/octa';
-import { VIEW_AXIS, signedAngle } from '../engine/rotation';
+import { OCTA_NORMALS, SIDE_AXIS, faceVertices, onSide, opTouches, oppositeAxis, swapAxis, type OctaOp, type OctaState } from '../engine/octa';
+import { signedAngle } from '../engine/rotation';
 import { cross, deg, dot, normalize, quatFromAxisAngle, rotateVec, scale, type Quat, type Vec3 } from '../engine/math';
 import { symbolMatrix, symbolWorldSize, type P2 } from './project';
 import { Glyph } from './Glyph';
@@ -28,7 +28,7 @@ function partial(op: OctaOp | null, p: number, n: [number, number, number]): { f
     const b = op.target === 'near' ? swapAxis(op.view, n) : oppositeAxis(op.view, n);
     return { face: null, pic: quatFromAxisAngle(normalize(b as unknown as Vec3), deg(180 * p)) };
   }
-  const q = quatFromAxisAngle(VIEW_AXIS[op.view], deg(signedAngle(op.dir, 90) * p));
+  const q = quatFromAxisAngle(SIDE_AXIS[op.view], deg(signedAngle(op.dir, 90) * p));
   return { face: q, pic: q };
 }
 

@@ -16,7 +16,7 @@ import {
 } from './octa';
 import { makeRng } from './rng';
 import { assemble, type GenParams, type MistakeTag, type Question } from './question';
-import type { View } from './rotation';
+import { ALL_SIDES, isMainSide, wholeTurnFrom, type Side } from './octa';
 
 const octaFig = (state: OctaState, caption?: string) => ({ kind: 'octa' as const, state, caption });
 
@@ -65,20 +65,20 @@ export function genOctaRule(p: GenParams, set: OctaRuleSet): Question {
     return run(o);
   };
   // 4면만 ↔ 전체
-  if (op.kind === 'layer') cands.push({ item: swapAt({ kind: 'turn', view: op.view, dir: op.dir }), tag: 'wrongRing' });
+  if (op.kind === 'layer') cands.push({ item: swapAt(wholeTurnFrom(op.view, op.dir)), tag: 'wrongRing' });
   if (op.kind === 'turn') cands.push({ item: swapAt({ kind: 'layer', view: op.view, dir: op.dir }), tag: 'wrongRing' });
   // 바로 맞붙은 면 ↔ 정반대편 면
   if (op.kind === 'swapPics') cands.push({ item: swapAt({ ...op, target: op.target === 'near' ? 'opposite' : 'near' }), tag: 'nearVsOpposite' });
   // 색 반전 빼먹기, 다른 쪽에 반전
   if (op.kind === 'invert') {
     cands.push({ item: run(ops.filter((_, k) => k !== i)), tag: 'missInvert' });
-    cands.push({ item: swapAt({ kind: 'invert', view: op.view === 'all' ? rng.pick(['top', 'right', 'front'] as View[]) : 'all' }), tag: 'wrongRing' });
+    cands.push({ item: swapAt({ kind: 'invert', view: op.view === 'all' ? rng.pick(cfg.views) : 'all' }), tag: 'wrongRing' });
   }
   const rev = flipOctaDir(op);
   if (rev) cands.push({ item: swapAt(rev), tag: 'reverse' });
   if (op.kind !== 'turn' && !(op.kind === 'invert' && op.view === 'all')) {
-    const other = (['top', 'right', 'front'] as View[]).filter((v) => v !== op.view);
-    cands.push({ item: swapAt({ ...op, view: rng.pick(other) } as OctaOp), tag: 'wrongRing' });
+    const other: Side[] = (op.kind === 'swapPics' ? ALL_SIDES.filter(isMainSide) : cfg.views).filter((v) => v !== op.view);
+    if (other.length) cands.push({ item: swapAt({ ...op, view: rng.pick(other) } as OctaOp), tag: 'wrongRing' });
   }
   const others = set.rules.filter((r) => r.id !== seq[i]);
   if (others.length) {
