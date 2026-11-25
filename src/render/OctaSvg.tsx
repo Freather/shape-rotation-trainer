@@ -1,17 +1,17 @@
-// 그림 정팔면체 그리기: 45° 위에서 비스듬히 본 한 장. 뒤에 숨은 면은 비쳐 보이게 그린다.
-// 숨은 면은 테두리를 점선으로, 가운데 작은 칸으로 색(검은 면은 회색 칸, 흰 면은 흰 칸)과 흐린 그림을 보여준다 (투명한 도형을 들여다본 모습이라 좌우가 뒤집혀 보임).
+// 그림 정팔면체 그리기: 앞쪽 조금 위·오른쪽에서 본 한 장. 면이 반투명해서 뒤쪽 면과 그림이 흐리게 비쳐 보인다.
+// 안 보이는 모서리는 점선. 뒤쪽 그림은 투명한 도형을 들여다본 모습이라 좌우가 뒤집혀 보인다.
 // anim이 있으면 그 연산이 p(0~1)만큼 진행된 중간 모습을 그린다.
 import type { ReactNode } from 'react';
 import { OCTA_COLORS, OCTA_NORMALS, faceVertices, onSide, opTouches, oppositeAxis, swapAxis, type OctaOp, type OctaState } from '../engine/octa';
 import { VIEW_AXIS, signedAngle } from '../engine/rotation';
-import { add, cross, deg, dot, normalize, quatFromAxisAngle, rotateVec, scale, sub, type Quat, type Vec3 } from '../engine/math';
+import { cross, deg, dot, normalize, quatFromAxisAngle, rotateVec, scale, type Quat, type Vec3 } from '../engine/math';
 import { symbolMatrix, symbolWorldSize, type P2 } from './project';
 import { Glyph } from './Glyph';
 
 const R = Math.sqrt(3);
 const LIGHT = normalize([-0.35, 0.85, 0.45]);
-/** 오른쪽 앞에서 45° 내려다보는 방향 */
-const CAM: Vec3 = normalize([0.5, 1, 0.866]);
+/** 앞에서 조금 위·오른쪽: 위아래 꼭짓점이 세로로 서고 앞쪽 4면이 보인다 */
+const CAM: Vec3 = normalize([0.22, 0.38, 0.9]);
 const CAM_R = normalize(cross([0, 1, 0], CAM));
 const CAM_U = cross(CAM, CAM_R);
 const proj = (v: Vec3): P2 => [dot(v, CAM_R), -dot(v, CAM_U)];
@@ -30,10 +30,13 @@ function partial(op: OctaOp | null, p: number, n: [number, number, number]): { f
 
 export function OctaView({ state, size = 160, anim, mark }: { state: OctaState; size?: number; anim?: { op: OctaOp; p: number } | null; mark?: OctaOp | null }) {
   const glyphSize = symbolWorldSize('octa');
-  const fronts: { depth: number; base: ReactNode; top: ReactNode }[] = [];
-  const hiddens: ReactNode[] = [];
-  const strongPics: { depth: number; el: ReactNode }[] = [];
-  const faintPics: ReactNode[] = [];
+  type Item = { depth: number; el: ReactNode };
+  const backFills: Item[] = [];
+  const backPics: Item[] = [];
+  const frontFills: Item[] = [];
+  const hiddenEdges: ReactNode[] = [];
+  const frontPics: Item[] = [];
+  const frontEdges: ReactNode[] = [];
   OCTA_NORMALS.forEach((n0, i) => {
     const n: Vec3 = normalize(n0 as unknown as Vec3);
     const { face: fq, pic: pq } = partial(anim?.op ?? null, anim?.p ?? 0, n0);
@@ -44,33 +47,41 @@ export function OctaView({ state, size = 160, anim, mark }: { state: OctaState; 
     const f = flipping ? { ...f0, color: 1 - f0.color } : f0;
     const corners = faceVertices(n0).map((v) => rf(scale(v as unknown as Vec3, R)));
     const center = rf(scale(n0 as unknown as Vec3, R / 3));
-    const pts = corners.map(proj);
+    const pts = ptsStr(corners.map(proj));
     const marked = !!mark && onSide(mark, n0);
-    if (dot(rn, CAM) > 1e-3) {
+    const front = dot(rn, CAM) > 1e-3;
+    const depth = dot(center, CAM);
+    const black = f.color === 1;
+    if (front) {
       const shade = 0.5 + 0.5 * dot(rn, LIGHT);
-      fronts.push({
-        depth: dot(center, CAM),
-        base: (
+      // 반투명: 뒤쪽 면과 그림이 비쳐 보이게
+      frontFills.push({
+        depth,
+        el: (
           <g key={`f${i}`}>
-            <polygon points={ptsStr(pts)} fill={OCTA_COLORS[f.color]} />
-            <polygon points={ptsStr(pts)} fill="#000" opacity={(1 - shade) * 0.22} />
-          </g>
-        ),
-        top: (
-          <g key={`e${i}`}>
-            <polygon points={ptsStr(pts)} fill="none" stroke="#111" strokeWidth={0.04} strokeLinejoin="round" />
-            {marked && <polygon points={ptsStr(pts)} fill="none" stroke="#d6336c" strokeWidth={0.09} strokeLinejoin="round" strokeDasharray="0.14 0.08" />}
+            <polygon points={pts} fill={OCTA_COLORS[f.color]} fillOpacity={black ? 0.82 : 0.7} />
+            <polygon points={pts} fill="#000" opacity={(1 - shade) * 0.15} />
           </g>
         ),
       });
-    } else {
-      // 숨은 면: 면을 줄인 칸에 색, 점선 테두리
-      const inner = corners.map((c) => proj(add(center, scale(sub(c, center), 0.55))));
-      hiddens.push(
-        <g key={`h${i}`}>
-          <polygon points={ptsStr(pts)} fill="none" stroke="#666" strokeWidth={0.026} strokeDasharray="0.09 0.07" strokeLinejoin="round" />
-          <polygon points={ptsStr(inner)} fill={f.color === 1 ? '#8a8a8f' : '#ffffff'} fillOpacity={f.color === 1 ? 0.75 : 0.9} stroke={marked ? '#d6336c' : '#666'} strokeWidth={marked ? 0.06 : 0.026} strokeDasharray="0.09 0.07" />
+      frontEdges.push(
+        <g key={`e${i}`}>
+          <polygon points={pts} fill="none" stroke="#111" strokeWidth={0.035} strokeLinejoin="round" />
+          {marked && <polygon points={pts} fill="none" stroke="#d6336c" strokeWidth={0.08} strokeLinejoin="round" strokeDasharray="0.14 0.08" />}
         </g>,
+      );
+    } else {
+      backFills.push({ depth, el: <polygon key={`b${i}`} points={pts} fill={OCTA_COLORS[f.color]} /> });
+      hiddenEdges.push(
+        <polygon
+          key={`h${i}`}
+          points={pts}
+          fill="none"
+          stroke={marked ? '#d6336c' : '#777'}
+          strokeWidth={marked ? 0.05 : 0.022}
+          strokeDasharray="0.08 0.06"
+          strokeLinejoin="round"
+        />,
       );
     }
     if (f.pic) {
@@ -80,28 +91,29 @@ export function OctaView({ state, size = 160, anim, mark }: { state: OctaState; 
       const u = normalize(rp(f.pic.up as unknown as Vec3));
       const r = cross(u, pn);
       const visible = dot(pn, CAM) > 1e-3;
-      const m = symbolMatrix(proj(c), proj(r), proj(u), visible ? glyphSize : glyphSize * 0.6);
+      const m = symbolMatrix(proj(c), proj(r), proj(u), glyphSize);
+      // 옮겨 가는 중인 그림은 어느 면 위에서도 보이게 흰 테두리
+      const color = pq ? '#111' : black ? '#fff' : '#111';
       const el = (
-        <g key={`p${i}`} transform={`matrix(${m.join(' ')})`} opacity={visible ? 1 : 0.55}>
-          <Glyph id={f.pic.symbol} color={!visible || pq ? '#111' : f.color === 1 ? '#fff' : '#111'} halo={pq ? '#fff' : undefined} />
+        <g key={`p${i}`} transform={`matrix(${m.join(' ')})`}>
+          <Glyph id={f.pic.symbol} color={color} halo={pq ? '#fff' : undefined} />
         </g>
       );
-      if (visible) strongPics.push({ depth: dot(c, CAM), el });
-      else faintPics.push(el);
+      (visible ? frontPics : backPics).push({ depth: dot(c, CAM), el });
     }
   });
-  fronts.sort((a, b) => a.depth - b.depth);
-  strongPics.sort((a, b) => a.depth - b.depth);
-  const V = 2.15;
-  const front = proj([0, 0, R + 0.42]);
+  const byDepth = (a: Item, b: Item) => a.depth - b.depth;
+  const V = 2.05;
+  const frontMark = proj([0, 0, R + 0.4]);
   return (
     <svg width={size} height={size} viewBox={`${-V} ${-V} ${V * 2} ${V * 2}`} className="solid-svg">
-      {fronts.map((x) => x.base)}
-      {hiddens}
-      {faintPics}
-      {strongPics.map((x) => x.el)}
-      {fronts.map((x) => x.top)}
-      <text x={front[0]} y={front[1]} fontSize={0.3} textAnchor="middle" dominantBaseline="middle" fill="#d6336c" fontWeight={700}>
+      {backFills.sort(byDepth).map((x) => x.el)}
+      {backPics.sort(byDepth).map((x) => x.el)}
+      {frontFills.sort(byDepth).map((x) => x.el)}
+      {hiddenEdges}
+      {frontPics.sort(byDepth).map((x) => x.el)}
+      {frontEdges}
+      <text x={frontMark[0]} y={frontMark[1]} fontSize={0.28} textAnchor="middle" dominantBaseline="middle" fill="#d6336c" fontWeight={700}>
         앞
       </text>
     </svg>
