@@ -330,17 +330,19 @@ export function generateOctaRuleSet(level: number, seed: number): OctaRuleSet {
   const rng = makeRng(seed);
   const lv = Math.min(5, Math.max(1, level));
   const cfg = OCTA_LEVELS[lv];
-  const all = rng.shuffle(octaOpCandidates(cfg.kinds, cfg.views));
+  const all = rng.shuffle(octaOpCandidates(cfg.kinds, cfg.views, cfg.opposite));
   const ops: OctaOp[] = [];
   const effects = new Set<string>();
   const add = (o: OctaOp) => {
     const e = octaEffect(o);
     if (effects.has(e) || ops.length >= cfg.ruleCount) return;
+    // 그림 맞바꾸기는 세트에 하나만 (맞붙은 면이든 정반대편이든)
+    if (o.kind === 'swapPics' && ops.some((x) => x.kind === 'swapPics')) return;
     effects.add(e);
     ops.push(o);
   };
   // 종류마다 하나씩 먼저 (한쪽 4면 돌리기와 그림 옮기기가 꼭 들어가게)
-  for (const k of ['layer', 'movePics', 'swapOpposite', 'swapPics', 'turn'] as const) {
+  for (const k of ['layer', 'movePics', 'swapPics', 'turn'] as const) {
     const o = all.find((x) => x.kind === k);
     if (o) add(o);
   }

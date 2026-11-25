@@ -24,9 +24,9 @@ function cameraFrame(side: Side) {
 /** 연산 진행 중 면/그림이 도는 회전 */
 function partial(op: OctaOp | null, p: number, n: Vec3): { face: Quat | null; pic: Quat | null } {
   if (!op || p <= 0 || !opTouches(op, n as [number, number, number])) return { face: null, pic: null };
-  if (op.kind === 'swapPics' || op.kind === 'swapOpposite') {
+  if (op.kind === 'swapPics') {
     const nn = n as [number, number, number];
-    const b = op.kind === 'swapPics' ? swapAxis(op.view, nn) : oppositeAxis(op.view, nn);
+    const b = op.target === 'near' ? swapAxis(op.view, nn) : oppositeAxis(op.view, nn);
     return { face: null, pic: quatFromAxisAngle(normalize(b), deg(180 * p)) };
   }
   const q = quatFromAxisAngle(VIEW_AXIS[op.view], deg(signedAngle(op.dir, 90) * p));

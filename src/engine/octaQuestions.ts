@@ -71,8 +71,7 @@ export function genOctaRule(p: GenParams, set: OctaRuleSet): Question {
   if (op.kind === 'layer' || op.kind === 'movePics') cands.push({ item: swapAt({ kind: 'turn', view: op.view, dir: op.dir }), tag: 'wrongRing' });
   if (op.kind === 'turn') cands.push({ item: swapAt({ kind: 'layer', view: op.view, dir: op.dir }), tag: 'wrongRing' });
   // 바로 맞붙은 면 ↔ 정반대편 면
-  if (op.kind === 'swapPics') cands.push({ item: swapAt({ kind: 'swapOpposite', view: op.view }), tag: 'nearVsOpposite' });
-  if (op.kind === 'swapOpposite') cands.push({ item: swapAt({ kind: 'swapPics', view: op.view }), tag: 'nearVsOpposite' });
+  if (op.kind === 'swapPics') cands.push({ item: swapAt({ ...op, target: op.target === 'near' ? 'opposite' : 'near' }), tag: 'nearVsOpposite' });
   const rev = flipOctaDir(op);
   if (rev) cands.push({ item: swapAt(rev), tag: 'reverse' });
   if (op.kind !== 'turn') {
@@ -92,7 +91,7 @@ export function genOctaRule(p: GenParams, set: OctaRuleSet): Question {
     cands.push({ item: run(opsOf(s2)), tag: 'orderSwap' });
   }
   cands.push({ item: run(ops.slice(0, -1)), tag: 'skipLast' });
-  const extra = octaOpCandidates(cfg.kinds, cfg.views);
+  const extra = octaOpCandidates(cfg.kinds, cfg.views, cfg.opposite);
   let k = 0;
   const { options, answer } = assemble(
     rng,

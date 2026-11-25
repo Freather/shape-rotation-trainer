@@ -963,7 +963,7 @@ function genFlash(p: GenParams, set: RuleSet): Question {
           ...solidOpCandidates(set.solidId, set.fixedLabeling ?? set.exampleLabeling, SOLID_LEVELS[Math.max(2, set.level)]),
         ]
       : set.kind === 'octa'
-        ? (octaOpCandidates(OCTA_LEVELS[5].kinds, OCTA_LEVELS[5].views) as unknown as RotationOp[])
+        ? (octaOpCandidates(OCTA_LEVELS[5].kinds, OCTA_LEVELS[5].views, true) as unknown as RotationOp[])
         : set.kind === 'block'
         ? (blockOpCandidates({ views: ['front', 'top', 'right'], half: true, rolls: true, mirror: false, edits: true }) as unknown as RotationOp[])
         : radialOpCandidates(set.shape, RADIAL_LEVELS[set.level].kinds);
