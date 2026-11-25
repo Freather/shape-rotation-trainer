@@ -10,6 +10,7 @@ import { Parts } from './Parts';
 import { AxisMarks, VIEW_LABEL, type AxisMark } from '../render/AxisMarks';
 import { BlocksSvg, GridSvg, blocksRadius } from '../render/BlocksSvg';
 import { VIEW_AXIS } from '../engine/rotation';
+import { OctaPair } from '../render/OctaSvg';
 
 export function FigureView({ fig, size = 150, marks }: { fig: Figure; size?: number; marks?: AxisMark[] }) {
   const mono = useSettings((s) => s.mono);
@@ -81,6 +82,13 @@ export function FigureView({ fig, size = 150, marks }: { fig: Figure; size?: num
       return (
         <figure className="fig">
           <GridSvg grid={fig.grid} size={size * 0.85} />
+          {fig.caption && <figcaption>{fig.caption}</figcaption>}
+        </figure>
+      );
+    case 'octa':
+      return (
+        <figure className="fig">
+          <OctaPair state={fig.state} size={Math.round(size * 0.7)} captions={!!fig.caption || size >= 200} />
           {fig.caption && <figcaption>{fig.caption}</figcaption>}
         </figure>
       );

@@ -17,6 +17,7 @@ const TYPE_GROUPS: { title: string; items: [QType, string][] }[] = [
       [3, '전개도로 접은 도형이 맞는지 O/X'],
       [10, '처음과 나중을 보고 회전 순서 찾기'],
       [11, '규칙 번호와 내용 짝 맞추기'],
+      [20, '정팔면체 한쪽 4면 돌리기, 그림 옮기기'],
     ],
   },
   {
@@ -49,7 +50,7 @@ const TYPE_GROUPS: { title: string; items: [QType, string][] }[] = [
     ],
   },
 ];
-const RULE_TYPES: QType[] = [1, 8, 11, 12];
+const RULE_TYPES: QType[] = [1, 8, 11, 12, 20];
 
 export function maxLevel(type: QType): number {
   return type === 8 || type === 9 ? 4 : 5;
@@ -59,7 +60,7 @@ export function Practice() {
   const [type, setType] = useState<QType>(1);
   const [level, setLevel] = useState(1);
   const [solid, setSolid] = useState<SolidId | ''>('');
-  const [ruleKind, setRuleKind] = useState<'solid' | 'radial' | 'block'>('solid');
+  const [ruleKind, setRuleKind] = useState<'solid' | 'radial' | 'block' | 'octa'>('solid');
   const [phase, setPhase] = useState<'config' | 'rules' | 'question'>('config');
   const [setParams, setSetParams] = useState<SetParams | null>(null);
   const [q, setQ] = useState<Question | null>(null);
@@ -95,14 +96,16 @@ export function Practice() {
     setScore({ ok: 0, total: 0 });
     setCount(0);
     if (RULE_TYPES.includes(type)) {
-      const kind = type === 8 ? 'radial' : type === 12 ? 'block' : type === 11 ? ruleKind : 'solid';
+      const kind = type === 8 ? 'radial' : type === 12 ? 'block' : type === 20 ? 'octa' : type === 11 ? ruleKind : 'solid';
       const lv = kind === 'radial' ? Math.min(4, level) : level;
       const sp: SetParams =
         kind === 'solid'
           ? { kind: 'solid', level: lv, seed: randomSeed(), solidId: solid || undefined, allowMirror }
           : kind === 'block'
             ? { kind: 'block', level: lv, seed: randomSeed() }
-            : { kind: 'radial', level: lv, seed: randomSeed() };
+            : kind === 'octa'
+              ? { kind: 'octa', level: lv, seed: randomSeed() }
+              : { kind: 'radial', level: lv, seed: randomSeed() };
       setSetParams(sp);
       setPhase('rules');
     } else {
@@ -185,6 +188,9 @@ export function Practice() {
               </button>
               <button className={ruleKind === 'block' ? 'on' : ''} onClick={() => setRuleKind('block')}>
                 쌓기나무
+              </button>
+              <button className={ruleKind === 'octa' ? 'on' : ''} onClick={() => setRuleKind('octa')}>
+                그림 정팔면체
               </button>
             </div>
           </>
@@ -275,6 +281,7 @@ export function LevelGuide() {
           <tr><td>3</td><td>정팔면체, 꼭짓점 축과 면 축</td><td>사각·육각·삼각 과녁, 뒤집기, 그림 이동</td></tr>
           <tr><td>4</td><td>정십이면체, 72°와 144°</td><td>꽃잎형, 조건이 붙은 색 바꿈</td></tr>
           <tr><td>5</td><td>여러 도형 섞음, 3~5번, 거울상 보기 많음, 시간 짧음</td><td></td></tr>
+          <tr><td colSpan={3} className="muted">그림 정팔면체: 레벨 1은 위쪽 4면 돌리기만, 2부터 그림만 옮기기, 3부터 오른쪽·앞쪽과 그림 맞바꾸기가 나와요.</td></tr>
           <tr><td colSpan={3} className="muted">쌓기나무: 레벨이 오를수록 블록 수가 4개에서 8개로 늘고, 앞·오른쪽 축, 180°, 넘어뜨리기, 거울 규칙이 차례로 더해져요.</td></tr>
         </tbody>
       </table>

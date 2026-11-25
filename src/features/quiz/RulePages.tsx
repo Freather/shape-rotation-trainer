@@ -14,6 +14,9 @@ import { SolidSolution, RadialSolution, BlocksSolution } from '../../render/Solu
 import { Parts, RuleBadge } from '../../ui/Parts';
 import { SOLID_NAMES } from '../../engine/solids';
 import { FAMILY_NAMES } from '../../engine/radial/model';
+import { applyOctaOp, describeOctaOp, type OctaOp } from '../../engine/octa';
+import { OctaPair } from '../../render/OctaSvg';
+import { OctaSolution } from '../../render/SolutionPlayer';
 
 export function RuleCard({ set, index }: { set: RuleSet; index: number }) {
   const [animate, setAnimate] = useState(false);
@@ -80,6 +83,31 @@ export function RuleCard({ set, index }: { set: RuleSet; index: number }) {
       </div>
     );
   }
+  if (set.kind === 'octa') {
+    const op = rule.op as OctaOp;
+    return (
+      <div className="rule-card" onClick={() => setAnimate((a) => !a)}>
+        <div className="rule-head">
+          <RuleBadge id={rule.id} />
+          <span className="rule-desc">
+            <Parts parts={describeOctaOp(op)} />
+          </span>
+        </div>
+        {animate ? (
+          <div onClick={(e) => e.stopPropagation()}>
+            <OctaSolution sol={{ kind: 'octa', initial: set.example, steps: [{ op, label: rule.label }] }} size={240} />
+            <button className="link" onClick={() => setAnimate(false)}>닫기</button>
+          </div>
+        ) : (
+          <div className="before-after">
+            <OctaPair state={set.example} size={96} captions={false} mark={op} />
+            <span className="arrow">→</span>
+            <OctaPair state={applyOctaOp(set.example, op)} size={96} captions={false} />
+          </div>
+        )}
+      </div>
+    );
+  }
   const op = rule.op as RadialOp;
   const c1 = applyRadialOp(set.shape, set.exampleCells, op);
   return (
@@ -119,7 +147,7 @@ export function RulePages({ set, onStart, timer = 0, startLabel = '시작' }: { 
   useEffect(() => {
     if (timer && left <= 0) onStart();
   }, [left, timer, onStart]);
-  const title = set.kind === 'solid' ? SOLID_NAMES[set.solidId] : set.kind === 'block' ? '쌓기나무' : `${FAMILY_NAMES[set.shape.family]} (${set.shape.sectors.join('/')}칸)`;
+  const title = set.kind === 'solid' ? SOLID_NAMES[set.solidId] : set.kind === 'block' ? '쌓기나무' : set.kind === 'octa' ? '그림 정팔면체' : `${FAMILY_NAMES[set.shape.family]} (${set.shape.sectors.join('/')}칸)`;
   return (
     <div className="rule-pages">
       <div className="paper-head">
@@ -159,7 +187,17 @@ export function RuleSummary({ set }: { set: RuleSet }) {
       {set.rules.map((r) => (
         <div key={r.id}>
           <RuleBadge id={r.id} />{' '}
-          <Parts parts={set.kind === 'solid' ? describeOp(r.op as RotationOp) : set.kind === 'block' ? describeBlockOp(r.op as BlockOp) : describeRadialOp(r.op as RadialOp)} />
+          <Parts
+            parts={
+              set.kind === 'solid'
+                ? describeOp(r.op as RotationOp)
+                : set.kind === 'block'
+                  ? describeBlockOp(r.op as BlockOp)
+                  : set.kind === 'octa'
+                    ? describeOctaOp(r.op as OctaOp)
+                    : describeRadialOp(r.op as RadialOp)
+            }
+          />
         </div>
       ))}
     </div>

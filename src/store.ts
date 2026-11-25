@@ -4,7 +4,7 @@ import { persist } from 'zustand/middleware';
 import type { MistakeTag, QType } from './engine/question';
 import type { SolidId } from './engine/solids';
 import type { Family } from './engine/radial/model';
-import { generateBlockRuleSet, generateRadialRuleSet, generateSolidRuleSet, type RuleSet } from './engine/rules';
+import { generateBlockRuleSet, generateOctaRuleSet, generateRadialRuleSet, generateSolidRuleSet, type RuleSet } from './engine/rules';
 
 export interface Settings {
   mono: boolean;
@@ -58,13 +58,16 @@ export const useSettings = create<SettingsState>()(
 export type SetParams =
   | { kind: 'solid'; level: number; seed: number; solidId?: SolidId; allowMirror?: boolean }
   | { kind: 'radial'; level: number; seed: number; family?: Family }
-  | { kind: 'block'; level: number; seed: number };
+  | { kind: 'block'; level: number; seed: number }
+  | { kind: 'octa'; level: number; seed: number };
 
 export const buildRuleSet = (p: SetParams): RuleSet =>
   p.kind === 'solid'
     ? generateSolidRuleSet(p.level, p.seed, { solidId: p.solidId, allowMirror: p.allowMirror })
     : p.kind === 'block'
       ? generateBlockRuleSet(p.level, p.seed)
+      : p.kind === 'octa'
+      ? generateOctaRuleSet(p.level, p.seed)
       : generateRadialRuleSet(p.level, p.seed, p.family);
 
 export interface AnswerRecord {

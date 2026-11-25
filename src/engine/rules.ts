@@ -9,6 +9,7 @@ import { applyOp, initialState, signature, type Labeling } from './state';
 import { RADIAL_LEVELS, pickShape, radialOpCandidates, randomCells } from './radial/generate';
 import { radialSignature, type Cells, type Family, type RadialShape } from './radial/model';
 import { applyRadialOp, type RadialOp } from './radial/ops';
+import { OCTA_LEVELS, octaEffect, octaOpCandidates, randomOcta, type OctaOp, type OctaState } from './octa';
 import { allVisible, blockOpCandidates, isChiral, isEditOp, isIdentityOp, randomBlocks, sameEffect, type BlockOp, type Blocks } from './blocks';
 
 export interface Rule<Op> {
@@ -46,7 +47,15 @@ export interface BlockRuleSet {
   example: Blocks;
 }
 
-export type RuleSet = SolidRuleSet | RadialRuleSet | BlockRuleSet;
+export interface OctaRuleSet {
+  kind: 'octa';
+  seed: number;
+  level: number;
+  rules: Rule<OctaOp>[];
+  example: OctaState;
+}
+
+export type RuleSet = SolidRuleSet | RadialRuleSet | BlockRuleSet | OctaRuleSet;
 
 // ---------------- 입체 레벨 ----------------
 
@@ -312,5 +321,40 @@ export function generateBlockRuleSet(level: number, seed: number): BlockRuleSet 
     level,
     rules: shuffled.map((op, i) => ({ id: i + 1, label: String(i + 1), op })),
     example: pickBlocks(rng, level, true),
+  };
+}
+
+// ---------------- 그림 정팔면체 ----------------
+
+export function generateOctaRuleSet(level: number, seed: number): OctaRuleSet {
+  const rng = makeRng(seed);
+  const lv = Math.min(5, Math.max(1, level));
+  const cfg = OCTA_LEVELS[lv];
+  const all = rng.shuffle(octaOpCandidates(cfg.kinds, cfg.views));
+  const ops: OctaOp[] = [];
+  const effects = new Set<string>();
+  const add = (o: OctaOp) => {
+    const e = octaEffect(o);
+    if (effects.has(e) || ops.length >= cfg.ruleCount) return;
+    effects.add(e);
+    ops.push(o);
+  };
+  // 종류마다 하나씩 먼저 (한쪽 4면 돌리기와 그림 옮기기가 꼭 들어가게)
+  for (const k of ['layer', 'movePics', 'swapPics', 'turn'] as const) {
+    const o = all.find((x) => x.kind === k);
+    if (o) add(o);
+  }
+  // 헷갈리는 짝: 같은 쪽을 돌리는 4면 돌리기와 그림만 옮기기
+  if (lv >= 2) {
+    const l = ops.find((o) => o.kind === 'layer');
+    if (l && l.kind === 'layer') add({ kind: 'movePics', view: l.view, dir: l.dir });
+  }
+  for (const o of all) add(o);
+  return {
+    kind: 'octa',
+    seed,
+    level: lv,
+    rules: rng.shuffle(ops).map((op, i) => ({ id: i + 1, label: String(i + 1), op })),
+    example: randomOcta(rng, cfg.picCount),
   };
 }

@@ -17,6 +17,8 @@ import { BlocksSvg, blocksRadius } from './BlocksSvg';
 import { applyBlockOp, isEditOp, type Blocks } from '../engine/blocks';
 import { blockFrame, blockOpMarks, colorsAfter } from './blockAnim';
 import { FigureView } from '../ui/FigureView';
+import { OctaPair } from './OctaSvg';
+import { applyOctaOp, describeOctaOp, type OctaState } from '../engine/octa';
 
 function Controls({ pl, total, labels, describe }: { pl: ReturnType<typeof usePlayer>; total: number; labels: string[]; describe: (i: number) => TextPart[] }) {
   return (
@@ -175,6 +177,25 @@ export function BlocksSolution({ sol, size = 260 }: { sol: Extract<Solution, { k
   );
 }
 
+/** 그림 정팔면체 풀이 */
+export function OctaSolution({ sol, size = 260 }: { sol: Extract<Solution, { kind: 'octa' }>; size?: number }) {
+  const hist = useMemo(() => {
+    const h: OctaState[] = [sol.initial];
+    for (const st of sol.steps) h.push(applyOctaOp(h[h.length - 1], st.op));
+    return h;
+  }, [sol]);
+  const pl = usePlayer(sol.steps.length, { stepMs: 1300 });
+  const step = pl.done < sol.steps.length ? sol.steps[pl.done] : null;
+  const anim = step && pl.p > 0 ? { op: step.op, p: easeInOut(pl.p) } : null;
+  return (
+    <div className="solution">
+      <OctaPair state={hist[pl.done]} anim={anim} size={Math.round(size * 0.62)} mark={step?.op} />
+      <div className="muted small">빨간 점선이 이번 단계에서 움직이는 4면이에요. 4면 돌리기는 면이 색째 돌고, 그림 옮기기는 색은 그대로 두고 그림만 옆 면으로 건너가요.</div>
+      <Controls pl={pl} total={sol.steps.length} labels={sol.steps.map((s) => s.label)} describe={(i) => describeOctaOp(sol.steps[i].op)} />
+    </div>
+  );
+}
+
 export function SolutionView({ sol, size }: { sol: Solution; size?: number }): ReactNode {
   switch (sol.kind) {
     case 'solid':
@@ -185,6 +206,8 @@ export function SolutionView({ sol, size }: { sol: Solution; size?: number }): R
       return <RadialSolution sol={sol} size={size} />;
     case 'blocks':
       return <BlocksSolution sol={sol} size={size} />;
+    case 'octa':
+      return <OctaSolution sol={sol} size={size} />;
     case 'figs':
       return (
         <div className="solution">

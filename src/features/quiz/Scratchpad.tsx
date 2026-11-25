@@ -9,6 +9,8 @@ import type { Cells } from '../../engine/radial/model';
 import { RadialSvg } from '../../render/RadialSvg';
 import { Parts, RuleBadge } from '../../ui/Parts';
 import { BlockScratch } from './BlockScratch';
+import { OctaScratch } from './OctaScratch';
+import type { OctaOp } from '../../engine/octa';
 import type { BlockOp } from '../../engine/blocks';
 
 const SolidScratch = lazy(() => import('./SolidScratch'));
@@ -121,6 +123,8 @@ export function Scratchpad({ q, ruleSet, revealed = true }: { q: Question; ruleS
         </Suspense>
       ) : sc.kind === 'blocks' ? (
         <BlockScratch cells={sc.cells} colors={sc.colors} rules={ruleSet?.kind === 'block' && q.type === 12 ? (ruleSet.rules as Rule<BlockOp>[]) : undefined} />
+      ) : sc.kind === 'octa' ? (
+        <OctaScratch state={sc.state} rules={ruleSet?.kind === 'octa' && q.type === 20 ? (ruleSet.rules as Rule<OctaOp>[]) : undefined} />
       ) : (
         <RadialScratch scratch={sc} rules={ruleSet?.kind === 'radial' && q.type === 8 ? (ruleSet.rules as Rule<RadialOp>[]) : undefined} />
       )}

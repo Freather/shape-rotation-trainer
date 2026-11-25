@@ -18,7 +18,7 @@ export function Exam() {
   const settings = useSettings();
   const addAnswer = useRecords((s) => s.addAnswer);
   const addWrong = useRecords((s) => s.addWrong);
-  const [kind, setKind] = useState<'solid' | 'radial' | 'block'>('solid');
+  const [kind, setKind] = useState<'solid' | 'radial' | 'block' | 'octa'>('solid');
   const [level, setLevel] = useState(1);
   const [phase, setPhase] = useState<'config' | 'rules' | 'run' | 'result'>('config');
   const [sheet, setSheet] = useState<Sheet | null>(null);
@@ -41,10 +41,12 @@ export function Exam() {
         ? { kind: 'solid', level: lv, seed: randomSeed(), allowMirror: settings.allowMirrorRules }
         : kind === 'block'
           ? { kind: 'block', level: lv, seed: randomSeed() }
-          : { kind: 'radial', level: lv, seed: randomSeed() };
+          : kind === 'octa'
+            ? { kind: 'octa', level: lv, seed: randomSeed() }
+            : { kind: 'radial', level: lv, seed: randomSeed() };
     const rs = buildRuleSet(sp);
     const questions = Array.from({ length: settings.examCount }, () =>
-      generateQuestion({ type: kind === 'solid' ? 1 : kind === 'block' ? 12 : 8, level: lv, seed: randomSeed(), ruleSet: rs }),
+      generateQuestion({ type: kind === 'solid' ? 1 : kind === 'block' ? 12 : kind === 'octa' ? 20 : 8, level: lv, seed: randomSeed(), ruleSet: rs }),
     );
     setSheet({ setParams: sp, questions });
     setAnswers(questions.map(() => null));
@@ -129,6 +131,9 @@ export function Exam() {
           </button>
           <button className={kind === 'block' ? 'on' : ''} onClick={() => setKind('block')}>
             쌓기나무
+          </button>
+          <button className={kind === 'octa' ? 'on' : ''} onClick={() => setKind('octa')}>
+            그림 정팔면체
           </button>
         </div>
         <div className="field-label">레벨</div>

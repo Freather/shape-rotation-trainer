@@ -4,6 +4,8 @@
 import { getSymbol } from '../symbols/library';
 import { blockOpCandidates, blocksKey, describeBlockOp, gridKey, type BlockOp, type Blocks, type ViewDir } from './blocks';
 import { generateBlockQuestion } from './blockQuestions';
+import { generateOctaQuestion } from './octaQuestions';
+import { OCTA_LEVELS, describeOctaOp, octaKey, octaOpCandidates, type OctaOp, type OctaState } from './octa';
 import { QUAT_IDENTITY, dot, quatMul, type Quat } from './math';
 import { defaultRoot, pickNet } from './net';
 import { makeRng, type Rng } from './rng';
@@ -41,7 +43,7 @@ import {
   type SolidState,
 } from './state';
 
-export type QType = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18 | 19;
+export type QType = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18 | 19 | 20;
 
 export const BLOCK_TYPES: QType[] = [12, 13, 14, 15, 16, 17, 18, 19];
 
@@ -65,6 +67,7 @@ export const QTYPE_NAMES: Record<QType, string> = {
   17: '두 쌓기나무 합쳐 돌리기',
   18: '세 방향 모양으로 찾기',
   19: '쌓기나무 규칙 찾기',
+  20: '그림 정팔면체 규칙 적용',
 };
 
 export type MistakeTag =
@@ -91,6 +94,7 @@ export type MistakeTag =
   | 'cellOff'
   | 'wrongPiece'
   | 'wrongSide'
+  | 'layerVsPic'
   | 'random';
 
 export const MISTAKE_NAMES: Record<MistakeTag, string> = {
@@ -117,6 +121,7 @@ export const MISTAKE_NAMES: Record<MistakeTag, string> = {
   cellOff: '칸 하나 틀림',
   wrongPiece: '맞지 않는 조각',
   wrongSide: '붙이는 방향 틀림',
+  layerVsPic: '4면 돌리기 ↔ 그림만 옮기기 착각',
   random: '기타',
 };
 
@@ -129,7 +134,8 @@ export type Figure =
   | { kind: 'text'; parts: TextPart[] }
   | { kind: 'ox'; value: boolean }
   | { kind: 'blocks'; cells: Blocks; caption?: string; colors?: string[]; viewMarks?: ViewDir[] }
-  | { kind: 'grid'; grid: boolean[][]; caption?: string };
+  | { kind: 'grid'; grid: boolean[][]; caption?: string }
+  | { kind: 'octa'; state: OctaState; caption?: string };
 
 export interface Option {
   figure: Figure;
@@ -142,13 +148,15 @@ export type Solution =
   | { kind: 'radial'; shape: RadialShape; cells: Cells; ops: RadialOp[]; labels: string[] }
   | { kind: 'text'; parts: TextPart[][] }
   | { kind: 'blocks'; initial: Blocks; steps: { op: BlockOp; label: TextPart[]; axisLabel?: string }[]; note?: string; colors?: string[] }
-  | { kind: 'figs'; figs: Figure[]; parts: TextPart[][] };
+  | { kind: 'figs'; figs: Figure[]; parts: TextPart[][] }
+  | { kind: 'octa'; initial: OctaState; steps: { op: OctaOp; label: string }[] };
 
 /** 연습할 때 옆에 띄우는 "직접 돌려보기" 판의 시작 상태 */
 export type Scratch =
   | { kind: 'solid'; solidId: SolidId; labeling: Labeling; initial: SolidState; net?: { edges: number[]; root: number } }
   | { kind: 'radial'; shape: RadialShape; cells: Cells }
-  | { kind: 'blocks'; cells: Blocks; colors?: string[] };
+  | { kind: 'blocks'; cells: Blocks; colors?: string[] }
+  | { kind: 'octa'; state: OctaState };
 
 export interface Question {
   scratch?: Scratch;
@@ -938,7 +946,13 @@ function genFlash(p: GenParams, set: RuleSet): Question {
   const rng = makeRng(p.seed);
   const rule = rng.pick(set.rules as { id: number; op: RotationOp | RadialOp }[]);
   const desc = (op: RotationOp | RadialOp): TextPart[] =>
-    set.kind === 'solid' ? describeOp(op as RotationOp) : set.kind === 'block' ? describeBlockOp(op as BlockOp) : describeRadialOp(op as RadialOp);
+    set.kind === 'solid'
+      ? describeOp(op as RotationOp)
+      : set.kind === 'block'
+        ? describeBlockOp(op as BlockOp)
+        : set.kind === 'octa'
+          ? describeOctaOp(op as unknown as OctaOp)
+          : describeRadialOp(op as RadialOp);
   const others = set.rules.filter((r) => r.id !== rule.id).map((r) => r.op as RotationOp | RadialOp);
   const extra: (RotationOp | RadialOp)[] =
     set.kind === 'solid'
@@ -946,7 +960,9 @@ function genFlash(p: GenParams, set: RuleSet): Question {
           ...set.rules.map((r) => inverseOp(r.op)),
           ...solidOpCandidates(set.solidId, set.fixedLabeling ?? set.exampleLabeling, SOLID_LEVELS[Math.max(2, set.level)]),
         ]
-      : set.kind === 'block'
+      : set.kind === 'octa'
+        ? (octaOpCandidates(OCTA_LEVELS[5].kinds, OCTA_LEVELS[5].views) as unknown as RotationOp[])
+        : set.kind === 'block'
         ? (blockOpCandidates({ views: ['front', 'top', 'right'], half: true, rolls: true, mirror: false, edits: true }) as unknown as RotationOp[])
         : radialOpCandidates(set.shape, RADIAL_LEVELS[set.level].kinds);
   const { options, answer } = assemble(
@@ -1000,6 +1016,8 @@ export function generateQuestion(p: GenParams): Question {
       return genBacktrack(p);
     case 11:
       return genFlash(p, p.ruleSet ?? generateSolidRuleSet(p.level, p.seed ^ 0x1234567));
+    case 20:
+      return generateOctaQuestion(p);
     default:
       return generateBlockQuestion(p);
   }
@@ -1020,6 +1038,8 @@ export function figureKey(f: Figure): string {
       return blocksKey(f.cells);
     case 'grid':
       return gridKey(f.grid);
+    case 'octa':
+      return octaKey(f.state);
     default:
       return JSON.stringify(f);
   }
