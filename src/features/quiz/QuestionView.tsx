@@ -87,7 +87,7 @@ export function QuestionView({
             {q.seq.map((id, i) => (
               <span key={i}>
                 {i > 0 && <span className="seq-arrow">→</span>}
-                <RuleBadge id={id} />
+                {id === 0 ? <span className="rule-badge rule-q">?</span> : <RuleBadge id={id} />}
               </span>
             ))}
           </div>
@@ -111,7 +111,7 @@ export function QuestionView({
           ))}
         </ol>
       )}
-      <div className={textOptions ? 'options options-text' : 'options'}>
+      <div className={q.type === 21 ? 'options options-rules' : textOptions ? 'options options-text' : 'options'}>
         {q.options.map((o, i) => {
           const cls = ['option'];
           if (!revealed && selected === i) cls.push('selected');

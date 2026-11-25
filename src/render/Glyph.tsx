@@ -4,7 +4,7 @@ import { getSymbol } from '../symbols/library';
 export function Glyph({ id, color = '#111', halo }: { id: string; color?: string; halo?: string }) {
   const s = getSymbol(id);
   if (s.text) {
-    return (
+    const t = (
       <text
         x={50}
         y={52}
@@ -21,6 +21,14 @@ export function Glyph({ id, color = '#111', halo }: { id: string; color?: string
       >
         {s.text}
       </text>
+    );
+    return s.underline ? (
+      <g>
+        {t}
+        <rect x={32} y={90} width={36} height={7} fill={color} />
+      </g>
+    ) : (
+      t
     );
   }
   return (

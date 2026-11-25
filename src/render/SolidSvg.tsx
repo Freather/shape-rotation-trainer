@@ -19,14 +19,16 @@ export function FaceDrawsSvg({
   view = VIEW,
   onFaceClick,
   children,
+  forceColor,
 }: {
   draws: FaceDraw[];
   children?: React.ReactNode;
   size?: number;
   view?: number;
   onFaceClick?: (face: number) => void;
+  forceColor?: boolean;
 }) {
-  const color = useSettings((s) => !s.mono);
+  const color = useSettings((s) => !s.mono) || !!forceColor;
   const seeThrough = draws.some((d) => d.hidden);
   const ptsOf = (d: FaceDraw) => d.pts.map((p) => p.join(',')).join(' ');
   /** 면 바탕 (안쪽 면이면 회색) */

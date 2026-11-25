@@ -269,3 +269,30 @@ input[type='time'] { border: 1px solid var(--line); border-radius: var(--r); pad
 
 .tilt-note { background: #fff4e6; border: 1px solid #ffd8a8; border-radius: 6px; padding: 6px 9px; margin: 6px 0; font-size: 0.92em; }
 
+.rule-badge.rule-q { background: #fff4e6; border-color: #e8590c; color: #e8590c; }
+
+/* 전개도 모음 */
+.net-gallery .gallery-head { display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px; }
+.net-gallery .gallery-head p { margin: 0; }
+.family-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { font-size: 0.8rem; padding: 2px 9px; border: 1px solid var(--line); border-radius: 999px; background: var(--paper); color: var(--ink-2); }
+.gallery-body { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 16px; align-items: start; }
+.gallery-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(168px, 1fr)); gap: 10px; }
+.net-card { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 190px; padding: 26px 8px 10px; background: var(--paper); border: 1px solid var(--line); transition: border-color 0.12s, background 0.12s; }
+.net-card:hover { background: var(--hover); border-color: #b9b5ad; }
+.net-card.on { border-color: var(--select-line); background: var(--select); box-shadow: inset 0 0 0 1px var(--select-line); }
+.net-no { position: absolute; top: 7px; left: 9px; font-weight: 800; font-size: 0.9rem; color: var(--ink); }
+.net-family { position: absolute; top: 7px; right: 8px; font-size: 0.72rem; padding: 1px 7px; border-radius: 999px; background: #f1efea; color: var(--ink-2); }
+.net-family.inline { position: static; margin-left: 8px; vertical-align: middle; }
+.net-pic { display: flex; align-items: center; justify-content: center; flex: 1; width: 100%; }
+.net-pic svg { max-width: 100%; height: auto; }
+.gallery-detail { position: sticky; top: 70px; background: var(--paper); border: 1px solid var(--line); border-radius: var(--r); padding: 14px; }
+.gallery-detail h3 { margin: 0 0 8px; font-size: 1rem; }
+@media (max-width: 760px) {
+  .gallery-body { grid-template-columns: 1fr; }
+  .gallery-detail { position: static; order: -1; }
+  .gallery-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+.options-rules { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+.options-rules .option { flex-direction: row; justify-content: center; gap: 10px; min-height: 56px; font-size: 1.15rem; font-weight: 700; }
+.options-rules .opt-labels { position: absolute; bottom: 2px; left: 0; right: 0; }

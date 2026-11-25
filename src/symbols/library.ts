@@ -19,6 +19,10 @@ export interface SymbolDef {
   parts?: SymbolPart[];
   text?: string;
   color: string;
+  /** 전개도 모음에만 쓰는 숫자 (문제에는 안 씀) */
+  noQuiz?: boolean;
+  /** 돌리면 다른 숫자처럼 보이는 글자(6)는 밑줄로 위아래를 표시 */
+  underline?: boolean;
 }
 
 const P = (d: string, mode: 'fill' | 'stroke' = 'fill'): SymbolPart => ({ d, mode });
@@ -90,6 +94,12 @@ export const SYMBOLS: SymbolDef[] = [
   })),
 ];
 
+// 전개도 모음용 숫자: 마주 보는 면끼리 같은 색 (정육면체는 합이 7, 정팔면체는 합이 9)
+const PAIR_COLORS = ['#ffd8a8', '#c5f6fa', '#d3f9d8', '#e5dbff'];
+for (const [prefix, n] of [['c', 6], ['o', 8]] as const)
+  for (let k = 1; k <= n; k++)
+    SYMBOLS.push({ id: `${prefix}_${k}`, name: String(k), chiral: true, rotationalOrder: 1, text: String(k), color: PAIR_COLORS[Math.min(k, n + 1 - k) - 1], noQuiz: true, underline: k === 6 || k === 9 });
+
 export const SYMBOL_MAP: Record<string, SymbolDef> = Object.fromEntries(SYMBOLS.map((s) => [s.id, s]));
 
 export const getSymbol = (id: string): SymbolDef => {
@@ -99,11 +109,11 @@ export const getSymbol = (id: string): SymbolDef => {
 };
 
 /** 문제에 쓸 수 있는 기호 (회전 대칭 없는 것만) */
-export const USABLE_SYMBOLS = SYMBOLS.filter((s) => s.rotationalOrder === 1);
+export const USABLE_SYMBOLS = SYMBOLS.filter((s) => s.rotationalOrder === 1 && !s.noQuiz);
 
 const gcd = (a: number, b: number): number => (b ? gcd(b, a % b) : a);
 /** 면이 n각형일 때 쓸 수 있는 기호: 면 회전(360/n 단위)으로 돌려도 같아 보이는 일이 없는 것 */
-export const symbolsForSides = (n: number) => SYMBOLS.filter((s) => gcd(s.rotationalOrder, n) === 1);
+export const symbolsForSides = (n: number) => SYMBOLS.filter((s) => gcd(s.rotationalOrder, n) === 1 && !s.noQuiz);
 
 /** 시험에 흔히 나오는 그림: 자주 섞이게 한다 */
 export const COMMON_SYMBOLS = ['heart', 'star', 'smile'];

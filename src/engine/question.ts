@@ -5,6 +5,7 @@ import { getSymbol } from '../symbols/library';
 import { blockOpCandidates, blocksKey, describeBlockOp, gridKey, type BlockOp, type Blocks, type ViewDir } from './blocks';
 import { generateBlockQuestion } from './blockQuestions';
 import { generateOctaQuestion } from './octaQuestions';
+import { genConditional, genMissingRule } from './ruleApps';
 import { OCTA_LEVELS, describeOctaOp, octaKey, octaOpCandidates, type OctaOp, type OctaState } from './octa';
 import { QUAT_IDENTITY, dot, quatMul, type Quat } from './math';
 import { defaultRoot, pickNet } from './net';
@@ -43,7 +44,7 @@ import {
   type SolidState,
 } from './state';
 
-export type QType = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18 | 19 | 20;
+export type QType = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18 | 19 | 20 | 21 | 22;
 
 export const BLOCK_TYPES: QType[] = [12, 13, 14, 15, 16, 17, 18, 19];
 
@@ -68,6 +69,8 @@ export const QTYPE_NAMES: Record<QType, string> = {
   18: '세 방향 모양으로 찾기',
   19: '쌓기나무 규칙 찾기',
   20: '그림 정팔면체 규칙 적용',
+  21: '빠진 규칙 찾기',
+  22: '조건 규칙',
 };
 
 export type MistakeTag =
@@ -96,6 +99,7 @@ export type MistakeTag =
   | 'wrongSide'
   | 'layerVsPic'
   | 'nearVsOpposite'
+  | 'wrongBranch'
   | 'random';
 
 export const MISTAKE_NAMES: Record<MistakeTag, string> = {
@@ -124,6 +128,7 @@ export const MISTAKE_NAMES: Record<MistakeTag, string> = {
   wrongSide: '붙이는 방향 틀림',
   layerVsPic: '4면 돌리기 ↔ 그림만 옮기기 착각',
   nearVsOpposite: '맞붙은 면 ↔ 정반대편 면 착각',
+  wrongBranch: '조건 판단 틀림',
   random: '기타',
 };
 
@@ -1025,6 +1030,10 @@ export function generateQuestion(p: GenParams): Question {
       return genFlash(p, p.ruleSet ?? generateSolidRuleSet(p.level, p.seed ^ 0x1234567));
     case 20:
       return generateOctaQuestion(p);
+    case 21:
+      return genMissingRule(p);
+    case 22:
+      return genConditional(p);
     default:
       return generateBlockQuestion(p);
   }

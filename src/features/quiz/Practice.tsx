@@ -43,6 +43,13 @@ const TYPE_GROUPS: { title: string; items: [QType, string][] }[] = [
     ],
   },
   {
+    title: '규칙 응용',
+    items: [
+      [21, '처음과 결과를 보고 빠진 규칙 번호 찾기'],
+      [22, '조건에 따라 규칙을 골라 적용한 결과 고르기'],
+    ],
+  },
+  {
     title: '평면 도형',
     items: [
       [8, '규칙 번호만 보고 바뀐 결과 고르기'],
@@ -50,7 +57,12 @@ const TYPE_GROUPS: { title: string; items: [QType, string][] }[] = [
     ],
   },
 ];
-const RULE_TYPES: QType[] = [1, 8, 11, 12, 20];
+const RULE_TYPES: QType[] = [1, 8, 11, 12, 20, 21, 22];
+
+type RuleKind = 'solid' | 'radial' | 'block' | 'octa';
+/** 유형마다 고를 수 있는 규칙 종류 */
+const KINDS_FOR: Partial<Record<QType, RuleKind[]>> = { 11: ['solid', 'radial', 'block', 'octa'], 21: ['octa', 'radial', 'block'], 22: ['octa', 'radial'] };
+const KIND_NAMES: Record<RuleKind, string> = { solid: '입체 회전', radial: '평면 도형', block: '쌓기나무', octa: '그림 정팔면체' };
 
 export function maxLevel(type: QType): number {
   return type === 8 || type === 9 ? 4 : 5;
@@ -60,7 +72,7 @@ export function Practice() {
   const [type, setType] = useState<QType>(1);
   const [level, setLevel] = useState(1);
   const [solid, setSolid] = useState<SolidId | ''>('');
-  const [ruleKind, setRuleKind] = useState<'solid' | 'radial' | 'block' | 'octa'>('solid');
+  const [ruleKind, setRuleKind] = useState<RuleKind>('solid');
   const [phase, setPhase] = useState<'config' | 'rules' | 'question'>('config');
   const [setParams, setSetParams] = useState<SetParams | null>(null);
   const [q, setQ] = useState<Question | null>(null);
@@ -96,7 +108,8 @@ export function Practice() {
     setScore({ ok: 0, total: 0 });
     setCount(0);
     if (RULE_TYPES.includes(type)) {
-      const kind = type === 8 ? 'radial' : type === 12 ? 'block' : type === 20 ? 'octa' : type === 11 ? ruleKind : 'solid';
+      const allowed = KINDS_FOR[type];
+      const kind: RuleKind = type === 8 ? 'radial' : type === 12 ? 'block' : type === 20 ? 'octa' : allowed ? (allowed.includes(ruleKind) ? ruleKind : allowed[0]) : 'solid';
       const lv = kind === 'radial' ? Math.min(4, level) : level;
       const sp: SetParams =
         kind === 'solid'
@@ -176,22 +189,15 @@ export function Practice() {
             </div>
           </>
         )}
-        {type === 11 && (
+        {KINDS_FOR[type] && (
           <>
             <div className="field-label">규칙 종류</div>
             <div className="seg">
-              <button className={ruleKind === 'solid' ? 'on' : ''} onClick={() => setRuleKind('solid')}>
-                입체 회전
-              </button>
-              <button className={ruleKind === 'radial' ? 'on' : ''} onClick={() => setRuleKind('radial')}>
-                평면 도형
-              </button>
-              <button className={ruleKind === 'block' ? 'on' : ''} onClick={() => setRuleKind('block')}>
-                쌓기나무
-              </button>
-              <button className={ruleKind === 'octa' ? 'on' : ''} onClick={() => setRuleKind('octa')}>
-                그림 정팔면체
-              </button>
+              {KINDS_FOR[type]!.map((k) => (
+                <button key={k} className={(KINDS_FOR[type]!.includes(ruleKind) ? ruleKind : KINDS_FOR[type]![0]) === k ? 'on' : ''} onClick={() => setRuleKind(k)}>
+                  {KIND_NAMES[k]}
+                </button>
+              ))}
             </div>
           </>
         )}

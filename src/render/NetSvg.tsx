@@ -15,6 +15,7 @@ export function NetSvg({
   mark,
   rootLabel,
   size = 220,
+  forceColor,
 }: {
   solidId: SolidId;
   edges: number[];
@@ -23,8 +24,10 @@ export function NetSvg({
   mark?: number;
   rootLabel?: boolean;
   size?: number;
+  /** 흑백 설정과 상관없이 면 색을 칠함 */
+  forceColor?: boolean;
 }) {
-  const mono = useSettings((s) => s.mono);
+  const mono = useSettings((s) => s.mono) && !forceColor;
   const net = net2D(solidId, edges, root, labeling);
   const pad = 0.15;
   const w = net.maxX - net.minX + pad * 2;

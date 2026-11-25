@@ -9,15 +9,16 @@ import { lookOf, visibleSignature, type Labeling, type Look } from '../state';
 import { SOLID_IDS, type SolidId } from '../solids';
 import { viewGrid, gridKey } from '../blocks';
 import { LOOKALIKE_GROUPS, getSymbol } from '../../symbols/library';
-import { randomLabeling } from '../rules';
 import { randomCells, pickShape } from '../radial/generate';
 import { randomOcta } from '../octa';
 import { makeRng } from '../rng';
+import { familyOf } from '../ruleApps';
+import { generateBlockRuleSet, generateOctaRuleSet, generateRadialRuleSet, randomLabeling, type RuleSet } from '../rules';
 import { getSolid } from '../solids';
 
 const SEEDS = 60;
 const maxLevelFor = (t: QType) => (t === 8 || t === 9 ? 4 : 5);
-const TYPES: QType[] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 13, 14, 15, 16, 17, 18, 19, 20];
+const TYPES: QType[] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22];
 
 const isViewOf = (look: Look, solidId: SolidId, lab: Labeling) =>
   symmetryGroup(solidId).some((g) => visibleSignature(lookOf({ solidId, q: g, mirrored: false }, lab)) === visibleSignature(look));
@@ -43,7 +44,7 @@ describe('전수검사', { timeout: 300_000 }, () => {
     const bad: string[] = [];
     each((q, label) => {
       const n = q.type === 3 ? 2 : 5;
-      if (q.options.length !== n) bad.push(`${label}: 보기 ${q.options.length}개`);
+      if (q.type === 21 ? q.options.length < 3 : q.options.length !== n) bad.push(`${label}: 보기 ${q.options.length}개`);
       if (new Set(q.options.map((o) => figureKey(o.figure))).size !== q.options.length) bad.push(`${label}: 보기 겹침`);
       if (q.options[q.answer]?.tag !== 'correct') bad.push(`${label}: 정답 표시 틀림`);
       if (q.options.filter((o) => o.tag === 'correct').length !== 1) bad.push(`${label}: 정답 표시가 하나가 아님`);
@@ -167,5 +168,46 @@ describe('전수검사', { timeout: 300_000 }, () => {
     expect(bad.slice(0, 10)).toEqual([]);
     // 흔한 그림이 대부분의 문제에 하나 이상 나옴
     expect(common).toBeGreaterThan(300 * SOLID_IDS.length * 0.8);
+  });
+
+  it('유형 21: 정답 규칙만 결과를 만들고, 유형 22: 정답이 조건대로 적용한 결과 (정팔면체·평면·쌓기나무 세트)', () => {
+    const bad: string[] = [];
+    for (let seed = 1; seed <= 40; seed++)
+      for (const lv of [1, 2, 3, 4, 5]) {
+        const sets: RuleSet[] = [generateOctaRuleSet(lv, seed), generateRadialRuleSet(Math.min(4, lv), seed), generateBlockRuleSet(lv, seed)];
+        for (const set of sets) {
+          const fam = familyOf(set)!;
+          const q = generateQuestion({ type: 21, level: lv, seed: seed * 31 + lv, ruleSet: set });
+          const [ini, fin] = q.stem;
+          const m = q.seq!.indexOf(0);
+          q.options.forEach((o, i) => {
+            if (o.figure.kind !== 'text') return;
+            const id = Number(String(o.figure.parts[0]).replace(/\D/g, ''));
+            const ids = q.seq!.map((x, k) => (k === m ? id : x));
+            const st = (f: typeof ini) => (f.kind === 'octa' ? f.state : f.kind === 'radial' ? f.cells : f.kind === 'blocks' ? f.cells : null);
+            const r = ids.reduce((acc, x) => fam.apply(acc, set.rules.find((ru) => ru.id === x)!.op), st(ini));
+            if ((fam.key(r) === fam.key(st(fin))) !== (i === q.answer)) bad.push(`유형21 ${set.kind} 레벨${lv} seed${seed}: 보기 ${i + 1}`);
+          });
+          if (set.kind === 'block') continue;
+          const q2 = generateQuestion({ type: 22, level: lv, seed: seed * 31 + lv, ruleSet: set });
+          if (q2.options.length !== 5 || new Set(q2.options.map((o) => figureKey(o.figure))).size !== 5) bad.push(`유형22 ${set.kind} 레벨${lv} seed${seed}: 보기 이상`);
+          const sol = q2.solution;
+          const ini2 = q2.stem[0];
+          const ans = q2.options[q2.answer].figure;
+          if (sol.kind === 'octa' && ini2.kind === 'octa' && ans.kind === 'octa') {
+            const r = sol.steps.reduce((acc, s2) => fam.apply(acc, s2.op), ini2.state);
+            if (fam.key(r) !== fam.key(ans.state)) bad.push(`유형22 octa 레벨${lv} seed${seed}: 정답이 풀이와 다름`);
+          }
+        }
+      }
+    expect(bad.slice(0, 10)).toEqual([]);
+  });
+});
+
+describe('전개도 모음', () => {
+  it('정육면체·정팔면체 전개도는 각각 11가지', async () => {
+    const { netPresets } = await import('../net');
+    expect(netPresets('cube').length).toBe(11);
+    expect(netPresets('octa').length).toBe(11);
   });
 });

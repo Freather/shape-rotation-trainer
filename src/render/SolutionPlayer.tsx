@@ -108,7 +108,7 @@ export function SolidSolution({ sol, size = 260 }: { sol: Extract<Solution, { ki
 }
 
 /** 전개도 → 접기 → (회전) */
-export function FoldSolution({ sol, size = 260 }: { sol: Extract<Solution, { kind: 'fold' }>; size?: number }) {
+export function FoldSolution({ sol, size = 260, forceColor }: { sol: Extract<Solution, { kind: 'fold' }>; size?: number; forceColor?: boolean }) {
   const solid = getSolid(sol.solidId);
   const toFinal = useMemo((): RotationOp | null => {
     let [w, x, y, z] = sol.finalQ;
@@ -158,7 +158,7 @@ export function FoldSolution({ sol, size = 260 }: { sol: Extract<Solution, { kin
     i === 0 ? ['한 장씩 접어요. 회색은 면의 안쪽이에요.'] : rotOps[i - 1].kind === 'axis' ? ['정답 그림과 같은 방향으로 돌려요.'] : describeOp(rotOps[i - 1]);
   return (
     <div className="solution">
-      <FaceDrawsSvg draws={draws} size={size} />
+      <FaceDrawsSvg draws={draws} size={size} forceColor={forceColor} />
       {foldTilt && (
         <div className="tilt-note">
           <Parts parts={bodyAxisCaption(foldTilt)} />

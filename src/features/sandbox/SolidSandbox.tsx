@@ -598,7 +598,7 @@ export function SolidSandbox() {
                 </div>
                 <p className="note">다른 그림으로 바꾸기 (이미 쓰인 그림은 흐리게 보여요)</p>
                 <div className="symbol-grid">
-                  {SYMBOLS.map((s) => (
+                  {SYMBOLS.filter((s) => !s.noQuiz).map((s) => (
                     <button
                       key={s.id}
                       title={s.name}

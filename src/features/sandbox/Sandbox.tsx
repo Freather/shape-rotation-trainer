@@ -1,14 +1,16 @@
 import { lazy, Suspense, useState } from 'react';
 import { RadialSandbox } from './RadialSandbox';
 import { NetBuilder } from './NetBuilder';
+import { NetGallery } from './NetGallery';
 
 // three.js 는 크기가 커서 입체 샌드박스에 들어올 때만 불러온다
 const SolidSandbox = lazy(() => import('./SolidSandbox').then((m) => ({ default: m.SolidSandbox })));
 
-type Mode = 'solid' | 'net' | 'radial';
+type Mode = 'solid' | 'net' | 'gallery' | 'radial';
 const MODES: [Mode, string][] = [
   ['solid', '입체 돌리기'],
   ['net', '전개도 만들기'],
+  ['gallery', '전개도 11가지'],
   ['radial', '평면 도형'],
 ];
 
@@ -31,6 +33,7 @@ export function Sandbox() {
         </Suspense>
       )}
       {mode === 'net' && <NetBuilder />}
+      {mode === 'gallery' && <NetGallery />}
       {mode === 'radial' && <RadialSandbox />}
     </div>
   );
