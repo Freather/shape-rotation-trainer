@@ -95,6 +95,7 @@ export type MistakeTag =
   | 'wrongPiece'
   | 'wrongSide'
   | 'layerVsPic'
+  | 'nearVsOpposite'
   | 'random';
 
 export const MISTAKE_NAMES: Record<MistakeTag, string> = {
@@ -122,6 +123,7 @@ export const MISTAKE_NAMES: Record<MistakeTag, string> = {
   wrongPiece: '맞지 않는 조각',
   wrongSide: '붙이는 방향 틀림',
   layerVsPic: '4면 돌리기 ↔ 그림만 옮기기 착각',
+  nearVsOpposite: '맞붙은 면 ↔ 정반대편 면 착각',
   random: '기타',
 };
 

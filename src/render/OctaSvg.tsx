@@ -1,7 +1,7 @@
 // 그림 정팔면체 그리기: 위에서 본 모습과 아래에서 본 모습 두 장으로 8면을 모두 보여준다.
 // anim이 있으면 그 연산이 p(0~1)만큼 진행된 중간 모습을 그린다.
 import type { ReactNode } from 'react';
-import { OCTA_COLORS, OCTA_NORMALS, faceVertices, opTouches, swapAxis, type OctaOp, type OctaState } from '../engine/octa';
+import { OCTA_COLORS, OCTA_NORMALS, faceVertices, onSide, opTouches, oppositeAxis, swapAxis, type OctaOp, type OctaState } from '../engine/octa';
 import { VIEW_AXIS, signedAngle } from '../engine/rotation';
 import { cross, deg, dot, normalize, quatFromAxisAngle, rotateVec, scale, type Quat, type Vec3 } from '../engine/math';
 import { symbolMatrix, symbolWorldSize, type P2 } from './project';
@@ -24,8 +24,9 @@ function cameraFrame(side: Side) {
 /** 연산 진행 중 면/그림이 도는 회전 */
 function partial(op: OctaOp | null, p: number, n: Vec3): { face: Quat | null; pic: Quat | null } {
   if (!op || p <= 0 || !opTouches(op, n as [number, number, number])) return { face: null, pic: null };
-  if (op.kind === 'swapPics') {
-    const b = swapAxis(op.view, n as [number, number, number]);
+  if (op.kind === 'swapPics' || op.kind === 'swapOpposite') {
+    const nn = n as [number, number, number];
+    const b = op.kind === 'swapPics' ? swapAxis(op.view, nn) : oppositeAxis(op.view, nn);
     return { face: null, pic: quatFromAxisAngle(normalize(b), deg(180 * p)) };
   }
   const q = quatFromAxisAngle(VIEW_AXIS[op.view], deg(signedAngle(op.dir, 90) * p));
@@ -56,7 +57,7 @@ export function OctaSvg({ state, side, size = 130, anim, mark }: { state: OctaSt
             <polygon points={ptsStr} fill={OCTA_COLORS[f.color]} />
             <polygon points={ptsStr} fill="#000" opacity={(1 - shade) * 0.22} />
             <polygon points={ptsStr} fill="none" stroke="#111" strokeWidth={0.04} strokeLinejoin="round" />
-            {mark && mark.kind !== 'turn' && mark.kind !== 'swapPics' && opTouches(mark, n0) && (
+            {mark && onSide(mark, n0) && (
               <polygon points={ptsStr} fill="none" stroke="#d6336c" strokeWidth={0.09} strokeLinejoin="round" strokeDasharray="0.14 0.08" />
             )}
           </g>

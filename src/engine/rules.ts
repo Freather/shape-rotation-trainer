@@ -340,7 +340,7 @@ export function generateOctaRuleSet(level: number, seed: number): OctaRuleSet {
     ops.push(o);
   };
   // 종류마다 하나씩 먼저 (한쪽 4면 돌리기와 그림 옮기기가 꼭 들어가게)
-  for (const k of ['layer', 'movePics', 'swapPics', 'turn'] as const) {
+  for (const k of ['layer', 'movePics', 'swapOpposite', 'swapPics', 'turn'] as const) {
     const o = all.find((x) => x.kind === k);
     if (o) add(o);
   }

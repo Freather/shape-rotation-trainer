@@ -70,6 +70,9 @@ export function genOctaRule(p: GenParams, set: OctaRuleSet): Question {
   // 4면만 ↔ 전체
   if (op.kind === 'layer' || op.kind === 'movePics') cands.push({ item: swapAt({ kind: 'turn', view: op.view, dir: op.dir }), tag: 'wrongRing' });
   if (op.kind === 'turn') cands.push({ item: swapAt({ kind: 'layer', view: op.view, dir: op.dir }), tag: 'wrongRing' });
+  // 바로 맞붙은 면 ↔ 정반대편 면
+  if (op.kind === 'swapPics') cands.push({ item: swapAt({ kind: 'swapOpposite', view: op.view }), tag: 'nearVsOpposite' });
+  if (op.kind === 'swapOpposite') cands.push({ item: swapAt({ kind: 'swapPics', view: op.view }), tag: 'nearVsOpposite' });
   const rev = flipOctaDir(op);
   if (rev) cands.push({ item: swapAt(rev), tag: 'reverse' });
   if (op.kind !== 'turn') {

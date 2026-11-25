@@ -33,6 +33,19 @@ describe('그림 정팔면체 엔진', () => {
     expect(a[down].pic?.symbol).toBe(st[up].pic?.symbol);
   });
 
+  it('정반대편 맞바꾸기: 두 번 하면 제자리, 위 오른쪽 앞 그림이 아래 왼쪽 뒤로, 위 꼭짓점을 가리키던 그림은 아래 꼭짓점을', () => {
+    const op: OctaOp = { kind: 'swapOpposite', view: 'top' };
+    const a = applyOctaOp(st, op);
+    expect(octaKey(applyOctaOp(a, op))).toBe(octaKey(st));
+    a.forEach((f, i) => expect(f.color).toBe(st[i].color));
+    const idx = (x: number, y: number, z: number) => OCTA_NORMALS.findIndex((n) => n[0] === x && n[1] === y && n[2] === z);
+    const s2 = st.map((f) => ({ ...f }));
+    s2[idx(1, 1, 1)] = { color: 0, pic: { symbol: 'arrow', up: [-1, 2, -1] } };
+    const b = applyOctaOp(s2, op);
+    expect(b[idx(-1, -1, -1)].pic).toEqual({ symbol: 'arrow', up: [1, -2, 1] });
+    expect(sameOctaEffect(op, { kind: 'swapPics', view: 'top' })).toBe(false);
+  });
+
   it('전체 돌리기 = 같은 축의 양쪽 4면을 따로 돌린 것', () => {
     const whole = applyOctaOp(st, { kind: 'turn', view: 'top', dir: 'cw' });
     const top = applyOctaOp(st, { kind: 'layer', view: 'top', dir: 'cw' });
