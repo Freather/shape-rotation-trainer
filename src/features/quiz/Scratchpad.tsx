@@ -13,7 +13,7 @@ import type { BlockOp } from '../../engine/blocks';
 
 const SolidScratch = lazy(() => import('./SolidScratch'));
 
-const ALL_KINDS: RadialOp['kind'][] = ['rotate', 'rotateRing', 'rotateOpposite', 'mirror', 'invert', 'invertRing', 'invertSymbolCells', 'moveSymbols', 'swapSymbolRings', 'spinSymbols', 'flipSymbols'];
+const ALL_KINDS: RadialOp['kind'][] = ['rotate', 'rotateRing', 'rotateOpposite', 'mirror', 'invert', 'invertRing', 'invertSymbolCells', 'moveSymbols', 'swapSymbolRings', 'shiftSymbolRings', 'spinSymbols', 'flipSymbols'];
 
 function RadialScratch({ scratch, rules }: { scratch: Extract<NonNullable<Question['scratch']>, { kind: 'radial' }>; rules?: Rule<RadialOp>[] }) {
   const [cells, setCells] = useState<Cells>(scratch.cells);

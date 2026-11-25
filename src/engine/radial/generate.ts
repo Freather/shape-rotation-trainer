@@ -53,12 +53,12 @@ export const RADIAL_LEVELS: Record<number, RadialLevelConfig> = {
   },
   3: {
     families: ['dart', 'square', 'hex', 'tri'],
-    kinds: ['rotate', 'rotateRing', 'rotateOpposite', 'mirror', 'invertRing', 'moveSymbols', 'spinSymbols', 'flipSymbols', 'swapSymbolRings'],
+    kinds: ['rotate', 'rotateRing', 'rotateOpposite', 'mirror', 'invertRing', 'moveSymbols', 'spinSymbols', 'flipSymbols', 'swapSymbolRings', 'shiftSymbolRings'],
     steps: [3, 4], ruleCount: 4, symbolCount: 5, confusing: 0.5,
   },
   4: {
     families: ['flower', 'dart', 'square', 'hex'],
-    kinds: ['rotate', 'rotateRing', 'rotateOpposite', 'mirror', 'invert', 'invertRing', 'invertSymbolCells', 'moveSymbols', 'spinSymbols', 'flipSymbols', 'swapSymbolRings'],
+    kinds: ['rotate', 'rotateRing', 'rotateOpposite', 'mirror', 'invert', 'invertRing', 'invertSymbolCells', 'moveSymbols', 'spinSymbols', 'flipSymbols', 'swapSymbolRings', 'shiftSymbolRings'],
     steps: [3, 5], ruleCount: 5, symbolCount: 5, confusing: 0.6,
   },
 };
@@ -92,6 +92,8 @@ export function radialOpCandidates(shape: RadialShape, kinds: RadialOp['kind'][]
     }
   if (has('swapSymbolRings'))
     for (const [a, b] of [[0, 2], [1, 2], [0, 1]] as const) if (shape.sectors[a] === shape.sectors[b]) out.push({ kind: 'swapSymbolRings', a, b });
+  if (has('shiftSymbolRings') && shape.sectors.every((n) => n === shape.sectors[0]))
+    for (const dir of ['out', 'in'] as const) out.push({ kind: 'shiftSymbolRings', dir });
   if (has('spinSymbols')) for (const dir of dirs) out.push({ kind: 'spinSymbols', dir, angle: 90 });
   if (has('flipSymbols')) out.push({ kind: 'flipSymbols' });
   return out;

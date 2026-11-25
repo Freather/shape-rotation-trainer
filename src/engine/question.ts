@@ -793,6 +793,9 @@ function genRadialRule(p: GenParams, set: RadialRuleSet): Question {
       case 'swapSymbolRings':
         v.push({ op: [], tag: 'skipLast' });
         break;
+      case 'shiftSymbolRings':
+        v.push({ op: [{ ...op, dir: op.dir === 'out' ? 'in' : 'out' }], tag: 'reverse' });
+        break;
     }
     return v;
   };

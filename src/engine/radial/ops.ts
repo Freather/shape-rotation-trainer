@@ -29,6 +29,8 @@ export type RadialOp =
   | { kind: 'moveSymbols'; dir: Dir; steps: number; withRot: boolean }
   /** 두 층의 그림 교환 */
   | { kind: 'swapSymbolRings'; a: number; b: number }
+  /** 그림만 한 층씩 안쪽/바깥쪽으로 이동 (같은 칸 번호). 맨 끝 층 그림은 반대쪽 끝 층으로 넘어감 */
+  | { kind: 'shiftSymbolRings'; dir: 'in' | 'out' }
   /** 각 그림 제자리 회전 */
   | { kind: 'spinSymbols'; dir: Dir; angle: number }
   /** 각 그림만 좌우 반전 (화면 기준 세로축) */
@@ -112,6 +114,17 @@ export function applyRadialOp(shape: RadialShape, cells: Cells, op: RadialOp): C
       }
       break;
     }
+    case 'shiftSymbolRings': {
+      if (!shape.sectors.every((n) => n === shape.sectors[0])) throw new Error('층마다 칸 수가 같아야 함');
+      out = clone(cells);
+      const d = op.dir === 'out' ? 1 : -1;
+      for (let r = 0; r < 3; r++)
+        for (let k = 0; k < shape.sectors[r]; k++) {
+          const A = cells[r][k];
+          Object.assign(out[mod(r + d, 3)][k], { symbol: A.symbol, rot: A.rot, mirrored: A.mirrored });
+        }
+      break;
+    }
     case 'spinSymbols':
       out = cells.map((ring) => ring.map((c) => (c.symbol ? { ...c, rot: c.rot + sgn(op.dir) * op.angle } : { ...c })));
       break;
@@ -156,6 +169,12 @@ export function describeRadialOp(op: RadialOp): TextPart[] {
       ];
     case 'swapSymbolRings':
       return [`${RING_NAMES[op.a]} 층과 ${RING_NAMES[op.b]} 층의 그림 맞바꿈`];
+    case 'shiftSymbolRings':
+      return [
+        op.dir === 'out'
+          ? '그림만 한 층씩 바깥쪽으로 이동, 바깥 층 그림은 안쪽 층으로'
+          : '그림만 한 층씩 안쪽으로 이동, 안쪽 층 그림은 바깥 층으로',
+      ];
     case 'spinSymbols':
       return [`그림만 제자리에서 ${dirText(op.dir)} ${op.angle}° 회전`];
     case 'flipSymbols':

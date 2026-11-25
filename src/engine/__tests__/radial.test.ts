@@ -100,3 +100,20 @@ describe('평면 방사형 도형 엔진', () => {
     expect(emptyCells(dart6)[2]).toHaveLength(6);
   });
 });
+
+describe('그림 안쪽/바깥쪽 이동', () => {
+  it('바깥쪽으로 한 층, 바깥 층 그림은 안쪽으로, 반대로 하면 원래대로', () => {
+    const shape: RadialShape = { family: 'dart', sectors: [4, 4, 4] };
+    const c: Cells = emptyCells(shape);
+    c[0][1] = { fill: 1, symbol: 'arrow', rot: 90, mirrored: false };
+    c[2][3] = { fill: 0, symbol: 'arrow', rot: 0, mirrored: false };
+    const out = applyRadialOp(shape, c, { kind: 'shiftSymbolRings', dir: 'out' });
+    expect(out[1][1].symbol).toBe('arrow');
+    expect(out[1][1].rot).toBe(90);
+    expect(out[0][1].fill).toBe(1);
+    expect(out[0][1].symbol).toBeNull();
+    expect(out[0][3].symbol).toBe('arrow');
+    const back = applyRadialOp(shape, out, { kind: 'shiftSymbolRings', dir: 'in' });
+    expect(radialSignature(shape, back)).toBe(radialSignature(shape, c));
+  });
+});

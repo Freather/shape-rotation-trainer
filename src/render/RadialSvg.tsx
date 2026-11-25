@@ -62,7 +62,7 @@ export function RadialSvg({
   };
   const inverts = (r: number, c: Cell): boolean =>
     !!op && (op.kind === 'invert' || (op.kind === 'invertRing' && op.ring === r) || (op.kind === 'invertSymbolCells' && !!c.symbol));
-  const symbolsMove = op && (op.kind === 'moveSymbols' || op.kind === 'swapSymbolRings');
+  const symbolsMove = op && (op.kind === 'moveSymbols' || op.kind === 'swapSymbolRings' || op.kind === 'shiftSymbolRings');
 
   const rings: ReactNode[] = cells.map((ring, r) => {
     const cellsEls = ring.map((c, k) => {
@@ -119,6 +119,13 @@ export function RadialSvg({
         if (op.kind === 'swapSymbolRings' && (r === op.a || r === op.b)) {
           const other = r === op.a ? op.b : op.a;
           const b = cellAnchor(shape, other, k);
+          return (
+            <SymbolAt key={`${r}-${k}`} x={a.x + (b.x - a.x) * ease} y={a.y + (b.y - a.y) * ease} size={a.size + (b.size - a.size) * ease} cell={c} color={BLACK} />
+          );
+        }
+        if (op.kind === 'shiftSymbolRings') {
+          const to = (r + (op.dir === 'out' ? 1 : 2)) % 3;
+          const b = cellAnchor(shape, to, k);
           return (
             <SymbolAt key={`${r}-${k}`} x={a.x + (b.x - a.x) * ease} y={a.y + (b.y - a.y) * ease} size={a.size + (b.size - a.size) * ease} cell={c} color={BLACK} />
           );

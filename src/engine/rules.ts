@@ -194,6 +194,9 @@ function radialConfusing(op: RadialOp, all: RadialOp[]): RadialOp[] {
     case 'invertRing':
     case 'invert':
       return same((o) => o.kind === 'invertRing' || o.kind === 'invert');
+    case 'shiftSymbolRings':
+    case 'swapSymbolRings':
+      return same((o) => o.kind === 'shiftSymbolRings' || o.kind === 'swapSymbolRings');
     case 'spinSymbols':
     case 'flipSymbols':
       return same((o) => o.kind === 'spinSymbols' || o.kind === 'flipSymbols');

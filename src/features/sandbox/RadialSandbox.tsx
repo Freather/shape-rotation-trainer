@@ -10,13 +10,13 @@ import { usePlayer } from '../../render/usePlayer';
 import { InlineGlyph } from '../../render/Glyph';
 import { Parts } from '../../ui/Parts';
 
-const ALL_KINDS: RadialOp['kind'][] = ['rotate', 'rotateRing', 'rotateOpposite', 'mirror', 'invert', 'invertRing', 'invertSymbolCells', 'moveSymbols', 'swapSymbolRings', 'spinSymbols', 'flipSymbols'];
+const ALL_KINDS: RadialOp['kind'][] = ['rotate', 'rotateRing', 'rotateOpposite', 'mirror', 'invert', 'invertRing', 'invertSymbolCells', 'moveSymbols', 'swapSymbolRings', 'shiftSymbolRings', 'spinSymbols', 'flipSymbols'];
 
 const OP_GROUPS: { title: string; kinds: RadialOp['kind'][] }[] = [
   { title: '돌리기', kinds: ['rotate', 'rotateRing', 'rotateOpposite'] },
   { title: '뒤집기', kinds: ['mirror'] },
   { title: '색 바꾸기', kinds: ['invert', 'invertRing', 'invertSymbolCells'] },
-  { title: '그림만 움직이기', kinds: ['moveSymbols', 'swapSymbolRings', 'spinSymbols', 'flipSymbols'] },
+  { title: '그림만 움직이기', kinds: ['moveSymbols', 'swapSymbolRings', 'shiftSymbolRings', 'spinSymbols', 'flipSymbols'] },
 ];
 
 type Tool = 'fill' | 'symbol' | 'rotate' | 'erase';
