@@ -1,7 +1,7 @@
 // 번호 규칙 시스템: 규칙 = 번호 + 연산. 세트는 매번 랜덤 생성 (같은 번호가 매번 다른 연산).
 // 입체 세트와 평면 방사형 세트를 같은 형식으로 다룬다.
 
-import { USABLE_SYMBOLS } from '../symbols/library';
+import { arrangeSymbols, symbolsForSides } from '../symbols/library';
 import { makeRng, type Rng } from './rng';
 import { inverseOp, symmetryGroup, type Dir, type RotationOp, type View } from './rotation';
 import { getSolid, type SolidId } from './solids';
@@ -80,8 +80,9 @@ export const SOLID_LEVELS: Record<number, SolidLevelConfig> = {
 
 export function randomLabeling(solidId: SolidId, rng: Rng): Labeling {
   const solid = getSolid(solidId);
-  const syms = rng.shuffle(USABLE_SYMBOLS).slice(0, solid.faces.length);
-  return syms.map((s) => ({ symbol: s.id, rot: rng.int(solid.sides), flip: false }));
+  const pool = rng.shuffle(symbolsForSides(solid.sides).map((s) => s.id));
+  const syms = rng.shuffle(arrangeSymbols(pool, (p) => rng.chance(p)).slice(0, solid.faces.length));
+  return syms.map((id) => ({ symbol: id, rot: rng.int(solid.sides), flip: false }));
 }
 
 export const opUsesSymbols = (op: RotationOp): boolean => op.kind === 'face' || op.kind === 'vertex' || op.kind === 'edge';

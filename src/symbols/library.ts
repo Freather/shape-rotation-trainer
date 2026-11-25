@@ -53,6 +53,23 @@ export const SYMBOLS: SymbolDef[] = [
     parts: [P('M50 12 L86 46 L74 46 L74 88 L26 88 L26 46 L14 46 Z')],
   },
   {
+    id: 'heart', name: '하트', chiral: false, rotationalOrder: 1, color: '#ffd6e0',
+    parts: [P('M50 88 C22 66 10 50 12 34 C14 18 34 10 50 28 C66 10 86 18 88 34 C90 50 78 66 50 88 Z')],
+  },
+  {
+    // 오각별은 72°마다 같아 보인다 → 오각형 면(정십이면체)에는 쓰지 않는다
+    id: 'star', name: '별', chiral: false, rotationalOrder: 5, color: '#ffec99',
+    parts: [P('M50.0 12.0 L60.0 40.2 L89.9 41.0 L66.2 59.3 L74.7 88.0 L50.0 71.0 L25.3 88.0 L33.8 59.3 L10.1 41.0 L40.0 40.2 Z')],
+  },
+  {
+    id: 'smile', name: '웃는 얼굴', chiral: false, rotationalOrder: 1, color: '#c3fae8',
+    parts: [
+      P('M50 13 A37 37 0 1 1 49.9 13 Z', 'stroke'),
+      P('M38 33 A7 7 0 1 1 37.9 33 Z M62 33 A7 7 0 1 1 61.9 33 Z'),
+      P('M28 56 Q50 84 72 56', 'stroke'),
+    ],
+  },
+  {
     id: 'hook', name: '갈고리', chiral: true, rotationalOrder: 1, color: '#ffdeeb',
     parts: [P('M30 88 V30 A20 20 0 0 1 70 30 V48 H54 V30 A4 4 0 0 0 46 30 V88 Z')],
   },
@@ -84,5 +101,38 @@ export const getSymbol = (id: string): SymbolDef => {
 /** 문제에 쓸 수 있는 기호 (회전 대칭 없는 것만) */
 export const USABLE_SYMBOLS = SYMBOLS.filter((s) => s.rotationalOrder === 1);
 
+const gcd = (a: number, b: number): number => (b ? gcd(b, a % b) : a);
+/** 면이 n각형일 때 쓸 수 있는 기호: 면 회전(360/n 단위)으로 돌려도 같아 보이는 일이 없는 것 */
+export const symbolsForSides = (n: number) => SYMBOLS.filter((s) => gcd(s.rotationalOrder, n) === 1);
+
+/** 시험에 흔히 나오는 그림: 자주 섞이게 한다 */
+export const COMMON_SYMBOLS = ['heart', 'star', 'smile'];
+
+/** 돌리면 서로 비슷해 보이는 그림 묶음: 한 문제에 같은 묶음에서 둘 이상 쓰지 않는다 */
+export const LOOKALIKE_GROUPS: string[][] = [
+  ['arrow', 'house'], // 화살표와 오각형 집은 돌리면 둘 다 화살표처럼 보임
+  ['ell', 't_ㄱ', 't_7'], // ㄴ자, ㄱ, 7은 돌리면 같은 꺾쇠
+  ['t_A', 't_V'], // A를 뒤집으면 V
+  ['t_J', 'hook'], // 갈고리 모양
+  ['flag', 'rtri'], // 깃발과 직각삼각형
+];
+
+/**
+ * 기호 순서 정하기: 흔한 그림(하트·별·웃는 얼굴)은 각각 확률 60%로 앞에 오고,
+ * 비슷해 보이는 묶음에서는 하나만 남긴다. shuffled는 이미 섞인 목록.
+ */
+export function arrangeSymbols(shuffled: string[], chance: (p: number) => boolean): string[] {
+  const common = shuffled.filter((id) => COMMON_SYMBOLS.includes(id) && chance(0.6));
+  const ordered = [...common, ...shuffled.filter((id) => !common.includes(id))];
+  const usedGroups = new Set<number>();
+  return ordered.filter((id) => {
+    const g = LOOKALIKE_GROUPS.findIndex((grp) => grp.includes(id));
+    if (g < 0) return true;
+    if (usedGroups.has(g)) return false;
+    usedGroups.add(g);
+    return true;
+  });
+}
+
 /** 칸이 작은 평면 도형에 쓰기 좋은 굵은 기호 */
-export const RADIAL_SYMBOLS = ['arrow', 'flag', 'ell', 'rtri', 'house', 't_F', 't_R', 't_ㄱ', 't_J', 'halfdisc'];
+export const RADIAL_SYMBOLS = ['arrow', 'flag', 'ell', 'rtri', 'house', 't_F', 't_R', 't_ㄱ', 't_J', 'halfdisc', 'heart', 'star', 'smile'];

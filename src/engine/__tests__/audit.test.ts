@@ -8,6 +8,12 @@ import { symmetryGroup } from '../rotation';
 import { lookOf, visibleSignature, type Labeling, type Look } from '../state';
 import { SOLID_IDS, type SolidId } from '../solids';
 import { viewGrid, gridKey } from '../blocks';
+import { LOOKALIKE_GROUPS, getSymbol } from '../../symbols/library';
+import { randomLabeling } from '../rules';
+import { randomCells, pickShape } from '../radial/generate';
+import { randomOcta } from '../octa';
+import { makeRng } from '../rng';
+import { getSolid } from '../solids';
 
 const SEEDS = 60;
 const maxLevelFor = (t: QType) => (t === 8 || t === 9 ? 4 : 5);
@@ -132,5 +138,34 @@ describe('전수검사', { timeout: 300_000 }, () => {
       });
     }, [15]);
     expect(bad.slice(0, 10)).toEqual([]);
+  });
+
+  it('한 문제 안에 비슷해 보이는 그림이 둘 이상 없고, 별은 오각형 면에 안 씀', () => {
+    const bad: string[] = [];
+    const check = (ids: string[], where: string) => {
+      for (const g of LOOKALIKE_GROUPS) if (ids.filter((id) => g.includes(id)).length > 1) bad.push(`${where}: ${ids.filter((id) => g.includes(id)).join(',')}`);
+    };
+    let common = 0;
+    for (let seed = 1; seed <= 300; seed++) {
+      for (const solidId of SOLID_IDS) {
+        const lab = randomLabeling(solidId, makeRng(seed));
+        const ids = lab.map((l) => l.symbol);
+        check(ids, `${solidId} seed${seed}`);
+        if (new Set(ids).size !== ids.length) bad.push(`${solidId} seed${seed}: 같은 그림 두 번`);
+        const n = getSolid(solidId).sides;
+        if (ids.some((id) => n % getSymbol(id).rotationalOrder === 0 && getSymbol(id).rotationalOrder > 1)) bad.push(`${solidId} seed${seed}: 돌려도 같은 그림`);
+        if (ids.some((id) => ['heart', 'star', 'smile'].includes(id))) common++;
+      }
+      const rng = makeRng(seed);
+      const shape = pickShape(4, rng);
+      const cells = randomCells(shape, rng, { symbolCount: 6 });
+      const rids = cells.flat().map((c) => c.symbol).filter((x): x is string => !!x);
+      check(rids, `평면 seed${seed}`);
+      const o = randomOcta(makeRng(seed), 6);
+      check(o.map((f) => f.pic?.symbol).filter((x): x is string => !!x), `정팔면체 seed${seed}`);
+    }
+    expect(bad.slice(0, 10)).toEqual([]);
+    // 흔한 그림이 대부분의 문제에 하나 이상 나옴
+    expect(common).toBeGreaterThan(300 * SOLID_IDS.length * 0.8);
   });
 });

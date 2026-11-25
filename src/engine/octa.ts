@@ -2,7 +2,7 @@
 // 면마다 색 하나와 (있으면) 그림 하나. 전체 회전 말고도 한쪽 4면만 돌리기, 그림만 옮기기가 있다.
 // 면 = 법선 부호 (sx, sy, sz). 그림 방향은 면 위의 정수 벡터 up(면 중심 → 꼭짓점 방향의 3배)로 들고 다닌다.
 
-import { RADIAL_SYMBOLS } from '../symbols/library';
+import { RADIAL_SYMBOLS, arrangeSymbols } from '../symbols/library';
 import { matFromAxis, type Mat3 } from './blocks';
 import type { Rng } from './rng';
 import { VIEW_AXIS, signedAngle, type Dir, type TextPart, type View } from './rotation';
@@ -138,7 +138,7 @@ export const octaKey = (st: OctaState): string =>
 export function randomOcta(rng: Rng, picCount = 5): OctaState {
   // 색 세 가지가 고루 (2~3면씩)
   const colors = rng.shuffle([0, 0, 1, 1, 1, 2, 2, 2]);
-  const syms = rng.shuffle(RADIAL_SYMBOLS);
+  const syms = rng.shuffle(arrangeSymbols(rng.shuffle(RADIAL_SYMBOLS), (p) => rng.chance(p)).slice(0, picCount));
   // 위쪽과 아래쪽에 그림이 고루 가도록
   const upper = rng.shuffle([0, 1, 2, 3]);
   const lower = rng.shuffle([4, 5, 6, 7]);

@@ -1,6 +1,6 @@
 // 방사형 도형 랜덤 생성 + 레벨별 연산 후보
 
-import { RADIAL_SYMBOLS } from '../../symbols/library';
+import { RADIAL_SYMBOLS, arrangeSymbols } from '../../symbols/library';
 import type { Rng } from '../rng';
 import type { Dir } from '../rotation';
 import {
@@ -26,7 +26,7 @@ export function randomCells(shape: RadialShape, rng: Rng, opts: { symbolCount?: 
   const innerSlots = rng.shuffle(slots.filter(([r]) => r === 0));
   const count = opts.symbolCount ?? 4;
   const picked = [...innerSlots.slice(0, shape.sectors[0] >= 6 ? 0 : 1), ...outerSlots].slice(0, count);
-  const syms = rng.shuffle(RADIAL_SYMBOLS);
+  const syms = rng.shuffle(arrangeSymbols(rng.shuffle(RADIAL_SYMBOLS), (p) => rng.chance(p)).slice(0, count));
   picked.forEach(([r, k], i) => {
     cells[r][k] = { ...cells[r][k], symbol: syms[i % syms.length], rot: rng.pick([0, 90, 180, 270]), mirrored: false };
   });
