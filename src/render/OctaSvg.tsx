@@ -1,4 +1,4 @@
-// 그림 정팔면체 그리기: 앞쪽 조금 위·오른쪽에서 본 한 장. 면이 반투명해서 뒤쪽 면과 그림이 흐리게 비쳐 보인다.
+// 그림 정팔면체 그리기: 정면에서 조금 위로 본 한 장. 면이 반투명해서 뒤쪽 면과 그림이 흐리게 비쳐 보인다.
 // 안 보이는 모서리는 점선. 뒤쪽 그림은 투명한 도형을 들여다본 모습이라 좌우가 뒤집혀 보인다.
 // anim이 있으면 그 연산이 p(0~1)만큼 진행된 중간 모습을 그린다.
 import type { ReactNode } from 'react';
@@ -10,8 +10,11 @@ import { Glyph } from './Glyph';
 
 const R = Math.sqrt(3);
 const LIGHT = normalize([-0.35, 0.85, 0.45]);
-/** 앞에서 조금 위·오른쪽: 위아래 꼭짓점이 세로로 서고 앞쪽 4면이 보인다 */
-const CAM: Vec3 = normalize([0.22, 0.38, 0.9]);
+/**
+ * 정면에서 24° 위: 앞쪽 4면이 모두 고르게 보이는 각도 (가장 비스듬한 면도 기울기 73° 이내),
+ * 뒤쪽 면 그림이 앞쪽 그림과 가장 덜 겹친다. 위아래 꼭짓점은 세로로 선다.
+ */
+const CAM: Vec3 = normalize([0, 0.407, 0.914]);
 const CAM_R = normalize(cross([0, 1, 0], CAM));
 const CAM_U = cross(CAM, CAM_R);
 const proj = (v: Vec3): P2 => [dot(v, CAM_R), -dot(v, CAM_U)];
@@ -91,7 +94,7 @@ export function OctaView({ state, size = 160, anim, mark }: { state: OctaState; 
       const u = normalize(rp(f.pic.up as unknown as Vec3));
       const r = cross(u, pn);
       const visible = dot(pn, CAM) > 1e-3;
-      const m = symbolMatrix(proj(c), proj(r), proj(u), glyphSize);
+      const m = symbolMatrix(proj(c), proj(r), proj(u), visible ? glyphSize : glyphSize * 0.8);
       // 옮겨 가는 중인 그림은 어느 면 위에서도 보이게 흰 테두리
       const color = pq ? '#111' : black ? '#fff' : '#111';
       const el = (
@@ -104,7 +107,6 @@ export function OctaView({ state, size = 160, anim, mark }: { state: OctaState; 
   });
   const byDepth = (a: Item, b: Item) => a.depth - b.depth;
   const V = 2.05;
-  const frontMark = proj([0, 0, R + 0.4]);
   return (
     <svg width={size} height={size} viewBox={`${-V} ${-V} ${V * 2} ${V * 2}`} className="solid-svg">
       {backFills.sort(byDepth).map((x) => x.el)}
@@ -113,9 +115,6 @@ export function OctaView({ state, size = 160, anim, mark }: { state: OctaState; 
       {hiddenEdges}
       {frontPics.sort(byDepth).map((x) => x.el)}
       {frontEdges}
-      <text x={frontMark[0]} y={frontMark[1]} fontSize={0.28} textAnchor="middle" dominantBaseline="middle" fill="#d6336c" fontWeight={700}>
-        앞
-      </text>
     </svg>
   );
 }
