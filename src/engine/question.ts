@@ -287,6 +287,11 @@ function frontFace(state: SolidState): number {
   return info[best].face;
 }
 
+/** 그림에 안 보이는 면도 알 수 있게 옆에 붙이는 전개도 (문제 rng와 따로 뽑아서 같은 seed면 같은 문제) */
+function hiddenFacesNet(solidId: SolidId, lab: Labeling, seed: number): Figure {
+  return netFig(solidId, pickNet(solidId, makeRng(seed ^ 0x6e6574)), lab);
+}
+
 // ---------------- 유형 1: 규칙 적용형 (입체) ----------------
 
 function genSolidRule(p: GenParams, set: SolidRuleSet): Question {
@@ -349,8 +354,8 @@ function genSolidRule(p: GenParams, set: SolidRuleSet): Question {
     seed: p.seed,
     setSeed: set.seed,
     solidId,
-    prompt: '도형에 규칙을 순서대로 적용한 결과로 알맞은 것은?',
-    stem: [solidFig(lookOf(initial, lab))],
+    prompt: '도형에 규칙을 순서대로 적용한 결과로 알맞은 것은? 안 보이는 면은 오른쪽 전개도로 확인해요.',
+    stem: [solidFig(lookOf(initial, lab)), hiddenFacesNet(solidId, lab, p.seed)],
     seq,
     options,
     answer,
@@ -412,8 +417,8 @@ function genFaceQuestion(p: GenParams): Question {
     level: p.level,
     seed: p.seed,
     solidId,
-    prompt: `아래 순서로 돌린 뒤 ${slotName}에 오는 그림은? 보기는 그 면을 정면에서 본 모습이에요.${slot === 0 && solidId === 'cube' ? ' 윗면은 화면 위쪽이 뒤쪽이에요.' : ''}`,
-    stem: [solidFig(lookOf(initial, lab))],
+    prompt: `아래 순서로 돌린 뒤 ${slotName}에 오는 그림은? 안 보이는 면은 오른쪽 전개도로 확인해요. 보기는 그 면을 정면에서 본 모습이에요.${slot === 0 && solidId === 'cube' ? ' 윗면은 화면 위쪽이 뒤쪽이에요.' : ''}`,
+    stem: [solidFig(lookOf(initial, lab)), hiddenFacesNet(solidId, lab, p.seed)],
     stemOps: ops.map(describeOp),
     options,
     answer,
