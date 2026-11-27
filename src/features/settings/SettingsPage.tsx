@@ -33,7 +33,7 @@ export function SettingsPage() {
           <input type="number" min={0} max={600} value={s.ruleTimer} onChange={(e) => s.set({ ruleTimer: Number(e.target.value) || 0 })} />
         </label>
         <label className="check">
-          <input type="checkbox" checked={s.allowRuleReviewInExam} onChange={(e) => s.set({ allowRuleReviewInExam: e.target.checked })} /> 실전에서도 문제 푸는 중에 규칙 다시 보기
+          <input type="checkbox" checked={s.allowRuleReviewInExam} onChange={(e) => s.set({ allowRuleReviewInExam: e.target.checked })} /> 실전에서 문제 푸는 중에 규칙을 몇 번이든 보기 (끄면 시험마다 한 번만)
         </label>
         <label className="check">
           <input type="checkbox" checked={s.allowMirrorRules} onChange={(e) => s.set({ allowMirrorRules: e.target.checked })} /> 입체 규칙에 거울 반전도 넣기

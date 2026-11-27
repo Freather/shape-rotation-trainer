@@ -28,6 +28,8 @@ export function Exam() {
   const [times, setTimes] = useState<number[]>([]);
   const [left, setLeft] = useState(0);
   const [showRules, setShowRules] = useState(false);
+  // 문제 푸는 중 규칙 보기: 설정에서 허용하지 않으면 시험 한 번에 한 번만
+  const [ruleUsed, setRuleUsed] = useState(false);
   const [review, setReview] = useState<number | null>(null);
   const qStart = useRef(0);
 
@@ -54,6 +56,8 @@ export function Exam() {
     setTimes(questions.map(() => 0));
     setIdx(0);
     setReview(null);
+    setRuleUsed(false);
+    setShowRules(false);
     setPhase('rules');
   };
 
@@ -115,7 +119,7 @@ export function Exam() {
     return (
       <div className="panel">
         <h2>실전 모드</h2>
-        <p className="lead">시험처럼 규칙 2쪽을 먼저 보고, 문제를 이어서 풀어요. 채점은 마지막에 한 번에 해요.</p>
+        <p className="lead">시험처럼 규칙 2쪽을 먼저 보고, 문제를 이어서 풀어요. 채점은 마지막에 한 번에 해요.{settings.allowRuleReviewInExam ? '' : ' 문제 푸는 중에 규칙은 한 번만 다시 볼 수 있어요.'}</p>
         <div className="field-label">종류</div>
         <div className="seg">
           <button className={kind === 'solid' ? 'on' : ''} onClick={() => setKind('solid')}>
@@ -171,7 +175,22 @@ export function Exam() {
             문제 {idx + 1} / {sheet.questions.length}
           </span>
           <span className={left <= 10 ? 'timer urgent' : 'timer'}>{Math.max(0, left)}초</span>
-          {settings.allowRuleReviewInExam && <button onClick={() => setShowRules((s) => !s)}>규칙 보기</button>}
+          {settings.allowRuleReviewInExam ? (
+            <button onClick={() => setShowRules((s) => !s)}>{showRules ? '규칙 닫기' : '규칙 보기'}</button>
+          ) : showRules ? (
+            <button onClick={() => setShowRules(false)}>규칙 닫기</button>
+          ) : (
+            <button
+              disabled={ruleUsed}
+              title={ruleUsed ? '이번 시험에서 규칙은 이미 한 번 봤어요' : '이번 시험에서 한 번만 볼 수 있어요'}
+              onClick={() => {
+                setRuleUsed(true);
+                setShowRules(true);
+              }}
+            >
+              {ruleUsed ? '규칙 보기 다 씀' : '규칙 보기 (1번)'}
+            </button>
+          )}
         </div>
         {showRules && <RuleSummary set={ruleSet} />}
         <QuestionView
