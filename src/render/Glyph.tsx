@@ -31,13 +31,29 @@ export function Glyph({ id, color = '#111', halo }: { id: string; color?: string
       t
     );
   }
+  // 웃는 얼굴: 얼굴은 그림 색으로 채우고 눈·입은 반대 색. 검은 그림이면 검은 얼굴에 흰 눈, 흰 그림이면 흰 얼굴에 검은 눈
+  if (id === 'smile') {
+    const line = halo ?? '#111';
+    const feat = halo ?? '#fff';
+    return (
+      <g>
+        <circle cx={50} cy={50} r={38} fill={color} stroke={line} strokeWidth={halo ? 6 : 0} />
+        <circle cx={38} cy={40} r={7} fill={feat} />
+        <circle cx={62} cy={40} r={7} fill={feat} />
+        <path d="M29 56 Q50 82 71 56" fill="none" stroke={feat} strokeWidth={7} strokeLinecap="round" />
+      </g>
+    );
+  }
   return (
     <g>
       {s.parts!.map((p, i) =>
         p.mode === 'fill' ? (
           <path key={i} d={p.d} fill={color} stroke={halo} strokeWidth={halo ? 6 : 0} paintOrder="stroke" strokeLinejoin="round" />
         ) : (
-          <path key={i} d={p.d} fill="none" stroke={color} strokeWidth={6} />
+          <g key={i}>
+            {halo && <path d={p.d} fill="none" stroke={halo} strokeWidth={12} strokeLinejoin="round" />}
+            <path d={p.d} fill="none" stroke={color} strokeWidth={6} />
+          </g>
         ),
       )}
     </g>

@@ -22,7 +22,8 @@ const octaFig = (state: OctaState, caption?: string) => ({ kind: 'octa' as const
 
 /** 그림 하나의 방향만 다른 꼭짓점 쪽으로 돌린 모습 (헷갈리는 보기) */
 function nudgePic(st: OctaState, k: number): OctaState | null {
-  const withPic = st.map((f, i) => (f.pic ? i : -1)).filter((i) => i >= 0);
+  // 앞쪽(보이는) 면의 그림만 돌린다: 뒤쪽 면은 흐리게 비쳐서 돌린 차이가 잘 안 보인다
+  const withPic = st.map((f, i) => (f.pic && OCTA_NORMALS[i][2] > 0 ? i : -1)).filter((i) => i >= 0);
   if (!withPic.length) return null;
   const i = withPic[k % withPic.length];
   const pic = st[i].pic!;
