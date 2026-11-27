@@ -204,6 +204,18 @@ describe('전수검사', { timeout: 300_000 }, () => {
   });
 });
 
+describe('그림 정팔면체 색 반전', () => {
+  it('반전하면 모양이 애매해지는 그림(반달)은 정팔면체에 안 나옴', () => {
+    const bad: string[] = [];
+    for (let seed = 1; seed <= 300; seed++) {
+      if (randomOcta(makeRng(seed), 8).some((f) => f.pic?.symbol === 'halfdisc')) bad.push(`seed${seed}`);
+      const q = generateQuestion({ type: 20, level: 1 + (seed % 5), seed });
+      for (const o of q.options) if (o.figure.kind === 'octa' && o.figure.state.some((f) => f.pic?.symbol === 'halfdisc')) bad.push(`유형20 seed${seed}`);
+    }
+    expect(bad.slice(0, 10)).toEqual([]);
+  });
+});
+
 describe('전개도 모음', () => {
   it('정육면체·정팔면체 전개도는 각각 11가지', async () => {
     const { netPresets } = await import('../net');

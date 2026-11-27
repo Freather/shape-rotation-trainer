@@ -2,7 +2,7 @@
 // 면은 모두 흰색, 면마다 (있으면) 그림 하나. 그림은 검은 그림이거나 흰 그림(테두리만). 전체 회전 말고도 한쪽 4면만 돌리기, 그림 맞바꾸기, 그림 색 반전이 있다.
 // 면 = 법선 부호 (sx, sy, sz). 그림 방향은 면 위의 정수 벡터 up(면 중심 → 꼭짓점 방향의 3배)로 들고 다닌다.
 
-import { RADIAL_SYMBOLS, arrangeSymbols } from '../symbols/library';
+import { OCTA_SYMBOLS, arrangeSymbols } from '../symbols/library';
 import { matFromAxis, type Mat3 } from './blocks';
 import type { Vec3 } from './math';
 import type { Rng } from './rng';
@@ -152,7 +152,7 @@ export const octaKey = (st: OctaState): string =>
   st.map((f) => (f.pic ? `${f.pic.symbol}@${f.pic.up.join(',')}${f.pic.white ? 'w' : ''}` : '-')).join('|');
 
 export function randomOcta(rng: Rng, picCount = 5): OctaState {
-  const syms = rng.shuffle(arrangeSymbols(rng.shuffle(RADIAL_SYMBOLS), (p) => rng.chance(p)).slice(0, picCount));
+  const syms = rng.shuffle(arrangeSymbols(rng.shuffle(OCTA_SYMBOLS), (p) => rng.chance(p)).slice(0, picCount));
   // 위쪽과 아래쪽에 그림이 고루 가도록
   const upper = rng.shuffle([0, 1, 2, 3]);
   const lower = rng.shuffle([4, 5, 6, 7]);
@@ -205,7 +205,7 @@ export function octaOpCandidates(kinds: OctaOp['kind'][], views: Side[], opposit
 
 const PROBES: OctaState[] = (() => {
   // 효과 비교용: 면마다 색·그림이 모두 다른 상태
-  const syms = RADIAL_SYMBOLS;
+  const syms = OCTA_SYMBOLS;
   return [0, 1].map((k) =>
     OCTA_NORMALS.map((n, i) => {
       const v = faceVertices(n)[(i + k) % 3];

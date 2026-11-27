@@ -146,3 +146,8 @@ export function arrangeSymbols(shuffled: string[], chance: (p: number) => boolea
 
 /** 칸이 작은 평면 도형에 쓰기 좋은 굵은 기호 */
 export const RADIAL_SYMBOLS = ['arrow', 'flag', 'ell', 'rtri', 'house', 't_F', 't_R', 't_ㄱ', 't_J', 'halfdisc', 'heart', 'star', 'smile'];
+/**
+ * 그림 정팔면체에 쓰는 그림: 색 반전(검은 그림 ↔ 흰 그림)이 또렷한 것만.
+ * 반달은 반전하면 반쪽 색이 바뀌어 180° 돌린 모습과 같아지므로 뺀다.
+ */
+export const OCTA_SYMBOLS = RADIAL_SYMBOLS.filter((id) => id !== 'halfdisc');
