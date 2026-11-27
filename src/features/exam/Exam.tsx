@@ -6,7 +6,8 @@ import { randomSeed } from '../../engine/rng';
 import { SOLID_LEVELS } from '../../engine/rules';
 import { buildRuleSet, useRecords, useSettings, type SetParams } from '../../store';
 import { QuestionView } from '../quiz/QuestionView';
-import { RulePages, RuleSummary } from '../quiz/RulePages';
+import { RuleCard, RulePages, RuleSummary } from '../quiz/RulePages';
+import { RuleBadge } from '../../ui/Parts';
 import { LevelGuide } from '../quiz/Practice';
 
 interface Sheet {
@@ -192,6 +193,19 @@ export function Exam() {
 
   // 결과
   const correct = sheet.questions.filter((q, i) => answers[i] === q.answer).length;
+  // 규칙마다: 쓰인 문제 수, 그중 틀린 문제 수
+  const ruleStat = new Map<number, { used: number; wrong: number }>();
+  sheet.questions.forEach((q, i) => {
+    const ok = answers[i] === q.answer;
+    for (const id of new Set(q.seq ?? [])) {
+      const st = ruleStat.get(id) ?? { used: 0, wrong: 0 };
+      st.used++;
+      if (!ok) st.wrong++;
+      ruleStat.set(id, st);
+    }
+  });
+  const weak = ruleSet.rules.filter((r) => (ruleStat.get(r.id)?.wrong ?? 0) > 0).sort((a, b) => ruleStat.get(b.id)!.wrong - ruleStat.get(a.id)!.wrong);
+  const reviewQ = review !== null ? sheet.questions[review] : null;
   return (
     <div className="panel">
       <h2>결과</h2>
@@ -201,6 +215,19 @@ export function Exam() {
       <p className="muted">
         걸린 시간 {Math.round(times.reduce((a, b) => a + b, 0) / 1000)}초. 틀린 문제는 오답노트에 넣어 뒀어요.
       </p>
+      {weak.length > 0 && (
+        <div className="weak-rules">
+          <div className="field-label">틀린 문제에 나온 규칙</div>
+          <div className="weak-list">
+            {weak.map((r) => (
+              <span key={r.id} className="weak-chip">
+                <RuleBadge id={r.id} /> {ruleStat.get(r.id)!.wrong}문제 틀림 / {ruleStat.get(r.id)!.used}문제
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+      <div className="table-scroll">
       <table className="result-table">
         <thead>
           <tr>
@@ -208,6 +235,7 @@ export function Exam() {
             <th>결과</th>
             <th>내 답</th>
             <th>정답</th>
+            <th>쓰인 규칙</th>
             <th>함정</th>
             <th>시간</th>
             <th></th>
@@ -223,6 +251,11 @@ export function Exam() {
                 <td>{ok ? 'O' : 'X'}</td>
                 <td>{a === null ? '-' : optionMark(a)}</td>
                 <td>{optionMark(q.answer)}</td>
+                <td className="seq-cell">
+                  {(q.seq ?? []).map((id, k) => (
+                    <RuleBadge key={k} id={id} />
+                  ))}
+                </td>
                 <td>{ok ? '' : a === null ? '안 풂' : MISTAKE_NAMES[q.options[a].tag]}</td>
                 <td>{(times[i] / 1000).toFixed(1)}s</td>
                 <td>
@@ -233,15 +266,25 @@ export function Exam() {
           })}
         </tbody>
       </table>
-      {review !== null && (
-        <div>
+      </div>
+      {reviewQ && review !== null && (
+        <div className="exam-review">
           <RuleSummary set={ruleSet} />
-          <QuestionView key={`r${review}`} q={sheet.questions[review]} number={review + 1} selected={answers[review]} revealed />
+          <QuestionView key={`r${review}`} q={reviewQ} number={review + 1} selected={answers[review]} revealed />
         </div>
       )}
+      <div className="field-label">규칙 다시 보기</div>
+      <p className="muted small">틀린 문제에 나온 규칙은 표시해 뒀어요. 카드를 누르면 움직이는 모습을 볼 수 있어요.</p>
+      <div className="rule-list">
+        {ruleSet.rules.map((r, i) => (
+          <div key={`${ruleSet.seed}-${i}`} className={(ruleStat.get(r.id)?.wrong ?? 0) > 0 ? 'rule-wrap weak' : 'rule-wrap'}>
+            <RuleCard set={ruleSet} index={i} />
+          </div>
+        ))}
+      </div>
       <div className="next-row">
         <button className="primary" onClick={() => setPhase('config')}>
-          다시 보기
+          새 시험 보기
         </button>
       </div>
     </div>
